@@ -10,6 +10,7 @@ from time import time
 from typing import List, Tuple, Dict
 
 import numpy as np
+import pandas as pd
 
 import events as e
 import settings as s
@@ -17,7 +18,6 @@ from agents import Agent, SequentialAgentBackend
 from fallbacks import pygame
 from items import Coin, Explosion, Bomb
 
-from datetime import datetime
 
 WorldArgs = namedtuple("WorldArgs",
                        ["no_gui", "fps", "turn_based", "update_interval", "save_replay", "replay", "make_video", "continue_without_training", "log_dir", "save_stats", "match_name", "seed", "silence_errors", "scenario", "collect_data"])
@@ -68,7 +68,8 @@ class GenericWorld:
 
         # Generate unique filename
         start_time = datetime.now() # May not be robust when multithreading/multiprocessing
-        self.file_path = "training_data/" + start_time.isoformat()
+        #self.file_path = "training_data/" + start_time.isoformat().replace(':','.')
+        self.file_path = "training_data/"+ datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
         self.round_data = []
 
@@ -325,9 +326,15 @@ class GenericWorld:
 
         # Get round number for distinct file names
         round = last_game_state["round"]
-        file = self.file_path + f"-{round}.json"
-        with open(file, "w") as f:
-            f.write(json.dumps(self.round_data, indent=4, cls=NumpyEncoder))
+        file = self.file_path + f"-{round}.pkl"
+        
+        df = pd.DataFrame(self.round_data)
+        df.to_pickle(file)
+        
+
+        
+        # clear list
+        self.round_data = []
 
         
         for a in self.agents:
