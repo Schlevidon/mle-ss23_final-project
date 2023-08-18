@@ -17,14 +17,25 @@ from agents import Agent, SequentialAgentBackend
 from fallbacks import pygame
 from items import Coin, Explosion, Bomb
 
+from datetime import datetime
+
 WorldArgs = namedtuple("WorldArgs",
-                       ["no_gui", "fps", "turn_based", "update_interval", "save_replay", "replay", "make_video", "continue_without_training", "log_dir", "save_stats", "match_name", "seed", "silence_errors", "scenario"])
+                       ["no_gui", "fps", "turn_based", "update_interval", "save_replay", "replay", "make_video", "continue_without_training", "log_dir", "save_stats", "match_name", "seed", "silence_errors", "scenario", "collect_data"])
 
 
 class Trophy:
     coin_trophy = pygame.transform.smoothscale(pygame.image.load(s.ASSET_DIR / 'coin.png'), (15, 15))
     suicide_trophy = pygame.transform.smoothscale(pygame.image.load(s.ASSET_DIR / 'explosion_0.png'), (15, 15))
     time_trophy = pygame.image.load(s.ASSET_DIR / 'hourglass.png')
+
+class NumpyEncoder(json.JSONEncoder):
+        """Convert numpy ndarray to lists of lists"""
+        def default(self, obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return json.JSONEncoder.default(self, obj)
 
 
 class GenericWorld:
@@ -55,6 +66,19 @@ class GenericWorld:
 
         self.running = False
 
+        # Generate unique filename
+        start_time = datetime.now() # May not be robust when multithreading/multiprocessing
+        self.file_path = "training_data/" + start_time.isoformat()
+
+        self.round_data = []
+
+    # Functions to save game state
+    def add_data_from_state(self, game_state: dict):
+        data = game_state.copy()
+        # Could take up too much memory if MAX_STEP very large
+        self.round_data.append(data)
+
+    
     def setup_logging(self):
         self.logger = logging.getLogger('BombeRLeWorld')
         self.logger.setLevel(s.LOG_GAME)
@@ -164,6 +188,8 @@ class GenericWorld:
         self.user_input = user_input
         self.logger.debug(f'User input: {self.user_input}')
 
+        # <-- save state here
+        self.add_data_from_state(self.get_global_state())
         self.poll_and_run_agents()
 
         # Progress world elements based
@@ -175,6 +201,27 @@ class GenericWorld:
 
         if self.time_to_stop():
             self.end_round()
+    
+    def get_global_state(self):
+        state = {
+            'round': self.round,
+            'step': self.step,
+            'field': np.array(self.arena),
+            'agents': [agent.get_state() for agent in self.active_agents],
+            #'agents': {agent.name : agent.get_state() for agent in self.agents},
+            #'alive' : {agent.name : True if agent in self.active_agents else False for agent in self.agents},
+            'bombs': [bomb.get_state() for bomb in self.bombs],
+            'coins': [coin.get_state() for coin in self.coins if coin.collectable],
+        }
+
+        explosion_map = np.zeros(self.arena.shape)
+        for exp in self.explosions:
+            if exp.is_dangerous():
+                for (x, y) in exp.blast_coords:
+                    explosion_map[x, y] = max(explosion_map[x, y], exp.timer - 1)
+        state['explosion_map'] = explosion_map
+
+        return state
 
     def collect_coins(self):
         for coin in self.coins:
@@ -272,6 +319,17 @@ class GenericWorld:
         # Wait in case there is still a game step running
         self.running = False
 
+        # Add final game state
+        last_game_state = self.get_global_state()
+        self.add_data_from_state(last_game_state)
+
+        # Get round number for distinct file names
+        round = last_game_state["round"]
+        file = self.file_path + f"-{round}.json"
+        with open(file, "w") as f:
+            f.write(json.dumps(self.round_data, indent=4, cls=NumpyEncoder))
+
+        
         for a in self.agents:
             a.note_stat("score", a.score)
             a.note_stat("rounds")
@@ -466,7 +524,7 @@ class BombeRLeWorld(GenericWorld):
         # Send events to all agents that expect them, then reset and wait for them
         for a in self.agents:
             if a.train:
-                if not a.dead:
+                if not a.dead or a.name == "get_data_agent": # Not a great solution but works
                     a.process_game_events(self.get_state_for_agent(a))
                 for enemy in self.active_agents:
                     if enemy is not a:
@@ -474,7 +532,7 @@ class BombeRLeWorld(GenericWorld):
                         # a.process_enemy_game_events(self.get_state_for_agent(enemy), enemy)
         for a in self.agents:
             if a.train:
-                if not a.dead:
+                if not a.dead or a.name == "get_data_agent": # Not a great solution but works
                     a.wait_for_game_event_processing()
                 for enemy in self.active_agents:
                     if enemy is not a:
