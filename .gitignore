@@ -113,3 +113,4 @@ replays/
 results/
 training_data/
 *.pkl
+*.ipynb
