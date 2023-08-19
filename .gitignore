@@ -117,4 +117,4 @@ training_data/
 *.pkl
 
 # Jupyter notebooks
-*.ipynb
+#*.ipynb
