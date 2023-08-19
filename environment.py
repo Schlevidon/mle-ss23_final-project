@@ -8,6 +8,7 @@ from pathlib import Path
 from threading import Event
 from time import time
 from typing import List, Tuple, Dict
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -20,23 +21,15 @@ from items import Coin, Explosion, Bomb
 
 
 WorldArgs = namedtuple("WorldArgs",
-                       ["no_gui", "fps", "turn_based", "update_interval", "save_replay", "replay", "make_video", "continue_without_training", "log_dir", "save_stats", "match_name", "seed", "silence_errors", "scenario", "collect_data"])
+                       ["no_gui", "fps", "turn_based", "update_interval", "save_replay", "replay",
+                        "make_video", "continue_without_training", "log_dir", "save_stats", "match_name",
+                        "seed", "silence_errors", "scenario", "data_dir"])
 
 
 class Trophy:
     coin_trophy = pygame.transform.smoothscale(pygame.image.load(s.ASSET_DIR / 'coin.png'), (15, 15))
     suicide_trophy = pygame.transform.smoothscale(pygame.image.load(s.ASSET_DIR / 'explosion_0.png'), (15, 15))
     time_trophy = pygame.image.load(s.ASSET_DIR / 'hourglass.png')
-
-class NumpyEncoder(json.JSONEncoder):
-        """Convert numpy ndarray to lists of lists"""
-        def default(self, obj):
-            if isinstance(obj, np.integer):
-                return int(obj)
-            if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            return json.JSONEncoder.default(self, obj)
-
 
 class GenericWorld:
     logger: logging.Logger
@@ -66,18 +59,42 @@ class GenericWorld:
 
         self.running = False
 
-        # Generate unique filename
-        start_time = datetime.now() # May not be robust when multithreading/multiprocessing
-        #self.file_path = "training_data/" + start_time.isoformat().replace(':','.')
-        self.file_path = "training_data/"+ datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+        # New code for saving training data
+        if args.data_dir is not None:
+            # This might not be robust for multithreading/multiprocessing
+            self.training_data_path = Path(args.data_dir) / datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
 
-        self.round_data = []
+            # Create directory if it doesn't exist
+            Path(self.training_data_path).mkdir(parents=True, exist_ok=True)
+            
+            self.round_data = []
 
-    # Functions to save game state
+    # Functions to save global game state
     def add_data_from_state(self, game_state: dict):
         data = game_state.copy()
         # Could take up too much memory if MAX_STEP very large
         self.round_data.append(data)
+
+    def get_global_state(self):
+        state = {
+            'round': self.round,
+            'step': self.step,
+            'field': np.array(self.arena),
+            'agents': [agent.get_state() for agent in self.active_agents],
+            #'agents': {agent.name : agent.get_state() for agent in self.agents},
+            #'alive' : {agent.name : True if agent in self.active_agents else False for agent in self.agents},
+            'bombs': [bomb.get_state() for bomb in self.bombs],
+            'coins': [coin.get_state() for coin in self.coins if coin.collectable],
+        }
+
+        explosion_map = np.zeros(self.arena.shape)
+        for exp in self.explosions:
+            if exp.is_dangerous():
+                for (x, y) in exp.blast_coords:
+                    explosion_map[x, y] = max(explosion_map[x, y], exp.timer - 1)
+        state['explosion_map'] = explosion_map
+
+        return state
 
     
     def setup_logging(self):
@@ -189,8 +206,11 @@ class GenericWorld:
         self.user_input = user_input
         self.logger.debug(f'User input: {self.user_input}')
 
-        # <-- save state here
-        self.add_data_from_state(self.get_global_state())
+        # Save game state for training data
+        if self.args.data_dir is not None:
+            self.add_data_from_state(self.get_global_state())
+
+
         self.poll_and_run_agents()
 
         # Progress world elements based
@@ -202,27 +222,6 @@ class GenericWorld:
 
         if self.time_to_stop():
             self.end_round()
-    
-    def get_global_state(self):
-        state = {
-            'round': self.round,
-            'step': self.step,
-            'field': np.array(self.arena),
-            'agents': [agent.get_state() for agent in self.active_agents],
-            #'agents': {agent.name : agent.get_state() for agent in self.agents},
-            #'alive' : {agent.name : True if agent in self.active_agents else False for agent in self.agents},
-            'bombs': [bomb.get_state() for bomb in self.bombs],
-            'coins': [coin.get_state() for coin in self.coins if coin.collectable],
-        }
-
-        explosion_map = np.zeros(self.arena.shape)
-        for exp in self.explosions:
-            if exp.is_dangerous():
-                for (x, y) in exp.blast_coords:
-                    explosion_map[x, y] = max(explosion_map[x, y], exp.timer - 1)
-        state['explosion_map'] = explosion_map
-
-        return state
 
     def collect_coins(self):
         for coin in self.coins:
@@ -320,21 +319,23 @@ class GenericWorld:
         # Wait in case there is still a game step running
         self.running = False
 
-        # Add final game state
-        last_game_state = self.get_global_state()
-        self.add_data_from_state(last_game_state)
+        # Serialize game state data for this round
+        if self.args.data_dir is not None:
+            # Add final game state to training data
+            last_game_state = self.get_global_state()
+            self.add_data_from_state(last_game_state)
 
-        # Get round number for distinct file names
-        round = last_game_state["round"]
-        file = self.file_path + f"-{round}.pkl"
-        
-        df = pd.DataFrame(self.round_data)
-        df.to_pickle(file)
-        
-
-        
-        # clear list
-        self.round_data = []
+            # Get round number for distinct file names
+            round = last_game_state["round"]
+            file_path = self.training_data_path / f"round{round}.pkl"
+            
+            # Pickle turned out to be the easiest format to work with since it preserves numpy arrays.
+            # JSON and CSV were too large and/or unwieldy.
+            df = pd.DataFrame(self.round_data)
+            df.to_pickle(file_path)
+            
+            # clear list for next round
+            self.round_data = []
 
         
         for a in self.agents:

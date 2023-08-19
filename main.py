@@ -140,6 +140,10 @@ def main(argv = None):
         sub.add_argument("--make-video", const=True, default=False, action='store', nargs='?',
                          help="Make a video from the game")
 
+        # Collect training data
+        sub.add_argument("--data-dir", nargs="?", default=None, const=os.path.dirname(os.path.abspath(__file__)) + "/training_data",
+                         help="Store all game states for every round in directory ...")
+
     args = parser.parse_args(argv)
     if args.command_name == "replay":
         args.no_gui = False
