@@ -111,6 +111,10 @@ screenshots/*.webm
 
 replays/
 results/
+
+# training data
 training_data/
 *.pkl
+
+# Jupyter notebooks
 *.ipynb
