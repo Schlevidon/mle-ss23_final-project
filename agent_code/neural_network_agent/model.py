@@ -19,8 +19,9 @@ class QNetwork(nn.Module):
 
     def forward(self, x):
         for layer in self.layers:
-            x = layers(x)
+            x = layer(x)
         return x
+
 
     def save(self, folder_path='./model', file_name='my-model.pt'):
         if not os.path.exists(folder_path):
