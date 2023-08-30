@@ -9,6 +9,10 @@ import torch.optim as optim
 import numpy as np
 from collections import deque
 
+#from coin_learning_agent
+from pathfinding.core.grid import Grid
+from pathfinding.finder.a_star import AStarFinder
+
 
 ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']) # [1, 2, 3, 4, 5, 6]
 
@@ -29,7 +33,7 @@ BATCH_SIZE = 32
 
 # TODO: Update EPS
 EPS = 1
-EPS_DECAY = 0.999
+EPS_DECAY = 0.9
 GAMMA = 1
 RANDOM_SEED = None
 CRITERION = torch.nn.MSELoss()
@@ -51,6 +55,8 @@ def setup(self):
 
     #Memory
     self.memory = deque(maxlen=MAX_MEMORY) # popleft()
+    self.coordinate_history = deque([], 20)
+    self.ignore_others_timer = 0
 
     self.batch_size = BATCH_SIZE
     self.gamma = GAMMA
@@ -68,12 +74,18 @@ def act(self, game_state: dict) -> str:
     if self.train and random.random() < self.eps:
         # Exploratory move
         self.logger.debug("Choosing action purely at random.")
-        # TODO: weigh some actions with higher probability?        
-        selected_action = np.random.choice(ACTIONS[valid_actions_mask])
+        # TODO: weigh some actions with higher probability? 
+
+        pos_agent, pos_coin, field= game_state['self'][3], game_state['coins'], game_state['field']
+        selected_action =  find_ideal_path(pos_agent, pos_coin, field)
+        #selected_action = np.random.choice(ACTIONS[valid_actions_mask])
+        
     else:
         self.logger.debug("Querying model for action.")
         # Act greedily wrt to Q-function
-        Q_values = self.model(state_to_features(game_state))
+        with torch.no_grad():
+            Q_values = self.model(state_to_features(game_state))
+        self.logger.debug(f"Q Values: {Q_values}")
         max_Q = torch.max(Q_values[valid_actions_mask])
         mask = np.array((Q_values == max_Q)) & valid_actions_mask
         best_actions = ACTIONS[mask]
@@ -154,3 +166,44 @@ def state_to_features(game_state: dict) -> np.array:
     output = stacked_channels.reshape(-1)
     #return output
     return torch.as_tensor(output, dtype=torch.float32)
+
+
+def find_ideal_path(pos_agent, pos_coin, field=None, bombs=None, explosion_map=None):
+    
+    field[field==1] = 2
+    field[field==0] = 1
+    grid = Grid(matrix=field)
+    finder = AStarFinder()
+
+    sx, sy = pos_agent
+    start = grid.node(sx, sy)
+
+    lengths = []
+    for coin in pos_coin:
+        cx, cy = coin
+        end = grid.node(cx,cy)
+        path, runs = finder.find_path(start, end, grid)
+        grid.cleanup()
+        lengths.append((len(path),path))
+
+    grid.cleanup()
+    lengths = sorted(lengths,key=lambda c : c[0])
+    try:
+        step0 = lengths[0][1][0]
+        step1 = lengths[0][1][1]
+    except:
+        return 'WAIT'
+
+    diff = np.array([step1.x,step1.y]) - np.array([step0.x,step0.y])
+
+    if diff[0]==0:
+        if diff[1]==1:
+            move = 'DOWN'
+        else:
+            move = 'UP'
+
+    elif diff[0]==1:
+        move = 'RIGHT'
+    else:
+        move = 'LEFT'
+    return move

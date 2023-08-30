@@ -76,6 +76,16 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # Idea: Add your own events to hand out rewards
     events.append("ACTION")
 
+    # If agent has been in the same location three times recently, it's a loop
+    try:
+        agent_pos = new_game_state['self'][-1]
+        if self.coordinate_history.count(agent_pos) > 2:
+            events.append("LOOP")
+        self.coordinate_history.append(agent_pos)
+    except:
+        self.logger.debug(f'Position of agent not found: no new_game_state')
+
+
     # state_to_features is defined in callbacks.py
     self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
@@ -175,12 +185,15 @@ def reward_from_events(self, events: List[str]) -> int:
     Here you can modify the rewards your agent get so as to en/discourage
     certain behavior.
     """
+
     game_rewards = {
-        e.COIN_COLLECTED: 300,
-        #e.KILLED_OPPONENT: 5,
+        e.COIN_COLLECTED: 500,
+        e.OPPONENT_ELIMINATED: 1000,
         "ACTION" : -1,
-        e.BOMB_DROPPED : -5,
-        e.KILLED_SELF : -500,
+        "LOOP" : -1000,
+        e.INVALID_ACTION : -5,
+        e.BOMB_DROPPED : -1000,
+        e.KILLED_SELF : -5000,
         e.SURVIVED_ROUND : 100
     }
     
