@@ -75,7 +75,8 @@ def act(self, game_state: dict) -> str:
         # Act greedily wrt to Q-function
         Q_values = self.model(state_to_features(game_state))
         max_Q = torch.max(Q_values[valid_actions_mask])
-        best_actions = ACTIONS[mask:=np.array((Q_values == max_Q)) & valid_actions_mask]
+        mask = np.array((Q_values == max_Q)) & valid_actions_mask
+        best_actions = ACTIONS[mask]
         self.logger.debug(f"Mask: {mask}")
         self.logger.debug(f"Actions: {ACTIONS}")
         self.logger.debug(f"Best actions: {best_actions}")
