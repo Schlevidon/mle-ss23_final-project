@@ -21,6 +21,16 @@ TRANSITION_HISTORY_SIZE = 100_000  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 
+ACTIONS_DICT = {
+    'UP': 0,
+    'RIGHT': 1,
+    'DOWN': 2,
+    'LEFT': 3,
+    'WAIT': 4,
+    'BOMB': 5
+}
+
+
 def setup_training(self):
     """
     Initialise self for training purpose.
@@ -95,10 +105,14 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     # Store the model
     self.model.save()
 
+    # Update EPS
+    self.eps *= self.eps_decay
+    self.logger.debug(f'EPS_value: {self.eps}')
+
 def train(self):
 
     model = self.model.to(self.DEVICE)
-    print(model)
+    #print(model)
     optimizer = self.optimizer
 
     transitions = self.transitions
@@ -113,29 +127,36 @@ def train(self):
 def train_step(self, batch):
     # TODO: how to send tensors to GPU if available
     transitions = list(zip(*batch))
-
+    actions = transitions[1]
     old_states = torch.vstack(transitions[0]).to(self.DEVICE)
     new_states = torch.vstack(transitions[2]).to(self.DEVICE)
-    print(old_states.shape, new_states.shape)
+    #print(old_states.shape, new_states.shape)
     reward = torch.tensor(transitions[3]).to(self.DEVICE)
 
     #mask_nan = ~np.isnan(new_states)
     #mask_nan = [np.isnan(state) for state in new_states]
-    mask_nan = ~torch.any(np.isnan(new_states), 1)
+    mask_nan = torch.any(np.isnan(new_states), 1)
     #new_states = new_states[mask_nan].reshape(int(np.sum(mask_nan) // new_states.shape[1]),-1)
 
     #terminal_states = torch.isnan(new_states).to(self.DEVICE)
-    print(terminal_states.shape)
+    
     outputs = self.model(old_states) # batch_size x 6
+    # -> [0.1, 0.3, 0.6], -> one-hot [0.1, 10, 0.6] 
     
     with torch.no_grad():
-        Q_values = self.model(new_states[mask_nan])
-        target = reward.clone().to(self.DEVICE) # batch_size
+        #Q_values = self.model(new_states[~mask_nan])
+        target = outputs.clone().to(self.DEVICE) # batch_size -> batch_size x 6
         # Q(s,a)
         # target:  R + gamma * max_a[ Q(s',a)- Q(s,a)] q + alpha (R+gamma * max()) \approx R(s,a,s')+ \gamma ' max(Q(s'))
-        # TODO: maybe need to filer out invalid actions before taking max
+        # TODO: maybe need to filter out invalid actions before taking max
+        #Q_max = Q_values.max(1)[0]
+        for a, r, Q_new, done, s in zip(actions, reward, target, mask_nan, new_states): # Transition: s, a -> s = 6a
+            a_idx = ACTIONS_DICT[a]
+            Q_new[a_idx] = r
+            if not done:
+                Q_new[a_idx] += self.gamma * torch.max(self.model(s)) #[0] ## for multi-dim input
 
-        target[mask_nan] += self.gamma * Q_values.max(1)[0]
+        #target[mask_nan] += self.gamma * Q_values.max(1)[0]
     
     self.optimizer.zero_grad()
     
@@ -143,6 +164,7 @@ def train_step(self, batch):
     loss.backward()
 
     self.optimizer.step()
+    self.logger.debug(f'Q_values: {Q_new}, Loss: {loss}')
 
 
 
@@ -154,10 +176,12 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 100,
+        e.COIN_COLLECTED: 300,
         #e.KILLED_OPPONENT: 5,
         "ACTION" : -1,
-        e.BOMB_DROPPED : -1000
+        e.BOMB_DROPPED : -5,
+        e.KILLED_SELF : -500,
+        e.SURVIVED_ROUND : 100
     }
     
     reward_sum = 0

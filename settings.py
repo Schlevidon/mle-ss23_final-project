@@ -18,6 +18,10 @@ SCENARIOS = {
         "CRATE_DENSITY": 0,
         "COIN_COUNT": 50
     },
+    "coin-heaven2": {
+        "CRATE_DENSITY": 0,
+        "COIN_COUNT": 100
+    },
     "loot-crate": { 
         "CRATE_DENSITY": 0.75, 
         "COIN_COUNT": 50 
@@ -70,5 +74,5 @@ INPUT_MAP = {
 # Logging levels
 LOG_GAME = logging.INFO
 LOG_AGENT_WRAPPER = logging.INFO
-LOG_AGENT_CODE = logging.DEBUG
+LOG_AGENT_CODE = logging.INFO
 LOG_MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB

@@ -118,3 +118,4 @@ training_data/
 
 # Jupyter notebooks
 #*.ipynb
+*.pt

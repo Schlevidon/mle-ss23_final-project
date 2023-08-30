@@ -10,7 +10,7 @@ import numpy as np
 from collections import deque
 
 
-ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB'])
+ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']) # [1, 2, 3, 4, 5, 6]
 
 MAX_MEMORY = 100_000
 
@@ -28,8 +28,8 @@ OPTIMIZER_PARAMS = {
 BATCH_SIZE = 32
 
 # TODO: Update EPS
-EPS_0 = 1
-EPS_DECAY = 0.9
+EPS = 1
+EPS_DECAY = 0.999
 GAMMA = 1
 RANDOM_SEED = None
 CRITERION = torch.nn.MSELoss()
@@ -44,7 +44,7 @@ def setup(self):
     
     if os.path.isfile(self.PATH):
         # TODO: Disable dropout and batch norm
-        self.model.load_state_dict(torch.load(path, map_location = torch.device(self.DEVICE)))
+        self.model.load_state_dict(torch.load(self.PATH, map_location = torch.device(self.DEVICE)))
     else:
         #self.model.initialize_weights()
         pass
@@ -56,23 +56,34 @@ def setup(self):
     self.gamma = GAMMA
     self.criterion = CRITERION
     self.optimizer_params = OPTIMIZER_PARAMS
+    self.eps = EPS
+    self.eps_decay = EPS_DECAY
 
 
 
 def act(self, game_state: dict) -> str:
     valid_actions_mask = get_valid_actions(game_state)
-    if self.train and random.random() < EPS_0:
+    self.logger.debug(f'Valid actions: {ACTIONS[valid_actions_mask]}')
+
+    if self.train and random.random() < self.eps:
         # Exploratory move
         self.logger.debug("Choosing action purely at random.")
-        # TODO: weigh some actions with higher probability?
-        return np.random.choice(ACTIONS[valid_actions_mask])
-
-    self.logger.debug("Querying model for action.")
-    # Act greedily wrt to Q-function
-    Q_values = self.model(state_to_features(game_state))
-    max_Q = np.max(Q_values[valid_actions_mask])
-    best_actions = ACTIONS[(Q_values == max_Q) & valid_actions_mask]
-    return np.random.choice(best_actions)
+        # TODO: weigh some actions with higher probability?        
+        selected_action = np.random.choice(ACTIONS[valid_actions_mask])
+    else:
+        self.logger.debug("Querying model for action.")
+        # Act greedily wrt to Q-function
+        Q_values = self.model(state_to_features(game_state))
+        max_Q = torch.max(Q_values[valid_actions_mask])
+        best_actions = ACTIONS[mask:=np.array((Q_values == max_Q)) & valid_actions_mask]
+        self.logger.debug(f"Mask: {mask}")
+        self.logger.debug(f"Actions: {ACTIONS}")
+        self.logger.debug(f"Best actions: {best_actions}")
+        selected_action = np.random.choice(best_actions)
+    
+    self.logger.debug(f"Selected action: {selected_action}")
+    
+    return selected_action
 
 def get_valid_actions(game_state) -> np.array:
     '''    round = game_state['round']
