@@ -16,12 +16,18 @@ class QNetwork(nn.Module):
                 layers.append(activation()) 
 
         self.layers = nn.ModuleList(layers)
+        self.apply(self._init_weights)
 
     def forward(self, x):
         for layer in self.layers:
             x = layer(x)
-        return x
-
+        return x#
+    
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=1.0)
+            if module.bias is not None:
+                module.bias.data.zero_()
 
     def save(self, folder_path='./model', file_name='my-model.pt'):
         if not os.path.exists(folder_path):

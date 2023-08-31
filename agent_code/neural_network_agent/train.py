@@ -10,14 +10,15 @@ import numpy as np
 from typing import List
 
 import events as e
-from .callbacks import state_to_features
+from .callbacks import state_to_features, get_valid_actions
+
 
 # This is only an example!
 Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+                        ('state', 'action', 'next_state', 'reward', 'next_state_dict'))
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 100_000  # keep only ... last transitions
+TRANSITION_HISTORY_SIZE = 100_000 
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 
@@ -87,8 +88,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 
     # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
-
+    self.transitions.append(Transition(state_to_features(old_game_state),
+                                        self_action, state_to_features(new_game_state), 
+                                        reward_from_events(self, events), 
+                                        new_game_state))
+    train_step(self,[self.transitions[-1]])
     # TODO: Perform a training step here?
 
 
@@ -107,7 +111,10 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     size = state_to_features(last_game_state).shape
-    self.transitions.append(Transition(state_to_features(last_game_state), last_action, torch.ones(size)*float('nan'), reward_from_events(self, events)))
+    self.transitions.append(Transition(state_to_features(last_game_state), 
+                                       last_action, torch.ones(size)*float('nan'), 
+                                       reward_from_events(self, events),
+                                       None))
 
     # Train the model
     train(self)
@@ -142,6 +149,7 @@ def train_step(self, batch):
     new_states = torch.vstack(transitions[2]).to(self.DEVICE)
     #print(old_states.shape, new_states.shape)
     reward = torch.tensor(transitions[3]).to(self.DEVICE)
+    new_states_dict = transitions[-1]
 
     #mask_nan = ~np.isnan(new_states)
     #mask_nan = [np.isnan(state) for state in new_states]
@@ -160,11 +168,12 @@ def train_step(self, batch):
         # target:  R + gamma * max_a[ Q(s',a)- Q(s,a)] q + alpha (R+gamma * max()) \approx R(s,a,s')+ \gamma ' max(Q(s'))
         # TODO: maybe need to filter out invalid actions before taking max
         #Q_max = Q_values.max(1)[0]
-        for a, r, Q_new, done, s in zip(actions, reward, target, mask_nan, new_states): # Transition: s, a -> s = 6a
+        for a, r, Q_new, done, s, dct in zip(actions, reward, target, mask_nan, new_states,new_states_dict): # Transition: s, a -> s = 6a
             a_idx = ACTIONS_DICT[a]
             Q_new[a_idx] = r
             if not done:
-                Q_new[a_idx] += self.gamma * torch.max(self.model(s)) #[0] ## for multi-dim input
+                valid_actions_mask = get_valid_actions(dct)
+                Q_new[a_idx] += self.gamma * torch.max(self.model(s)[valid_actions_mask]) #[0] ## for multi-dim input
 
         #target[mask_nan] += self.gamma * Q_values.max(1)[0]
     
@@ -187,14 +196,14 @@ def reward_from_events(self, events: List[str]) -> int:
     """
 
     game_rewards = {
-        e.COIN_COLLECTED: 500,
+        e.COIN_COLLECTED: 100,
         e.OPPONENT_ELIMINATED: 1000,
         "ACTION" : -1,
-        "LOOP" : -1000,
+        "LOOP" : -50,
         e.INVALID_ACTION : -5,
-        e.BOMB_DROPPED : -1000,
-        e.KILLED_SELF : -5000,
-        e.SURVIVED_ROUND : 100
+        e.BOMB_DROPPED : -10,
+        e.KILLED_SELF : -300
+        #e.SURVIVED_ROUND : 100
     }
     
     reward_sum = 0

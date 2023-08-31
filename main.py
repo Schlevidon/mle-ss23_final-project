@@ -155,6 +155,7 @@ def main(argv = None):
         if not LOADED_PYGAME:
             raise ValueError("pygame could not loaded, cannot run with GUI")
 
+
     # Initialize environment and agents
     if args.command_name == "play":
         agents = []
