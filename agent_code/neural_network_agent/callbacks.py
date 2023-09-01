@@ -16,6 +16,8 @@ from pathfinding.finder.a_star import AStarFinder
 
 import settings as s
 
+from . import callbacks_rb as crb
+
 def state_to_features(game_state: dict) -> np.array:
     '''    round = game_state['round']
         step = game_state['step']
@@ -134,7 +136,16 @@ def setup(self):
         pass
 
     self.coordinate_history = deque([], 20)
-    self.ignore_others_timer = 0
+
+    self.round_reward = 0
+    self.round_score_history = []
+
+    self.round_reward_history = []
+    self.mean_round_reward_history = []
+
+    self.step_reward_history = []
+
+    self.eps_history = []
 
     self.batch_size = BATCH_SIZE
     self.gamma = GAMMA
@@ -143,12 +154,21 @@ def setup(self):
     self.eps = EPS
     self.eps_decay = EPS_DECAY
 
+    # For rule-based agent only
+    self.bomb_history = deque([], 5)
+    self.coordinate_history = deque([], 20)
+    self.ignore_others_timer = 0
+    self.current_round = 0
+    
+
 
 
 def act(self, game_state: dict) -> str:
+    #return crb.act(self, game_state)
+
     valid_actions_mask = get_valid_actions(game_state)
     self.logger.debug(f'Valid actions: {ACTIONS[valid_actions_mask]}')
-
+    
     if self.train and random.random() < self.eps:
         # Exploratory move
         self.logger.debug("Choosing action purely at random.")
@@ -157,6 +177,7 @@ def act(self, game_state: dict) -> str:
         #pos_agent, pos_coin, field= game_state['self'][3], game_state['coins'], game_state['field']
         #selected_action =  find_ideal_path(pos_agent, pos_coin, field)
         selected_action = np.random.choice(ACTIONS[valid_actions_mask])
+        return crb.act(self, game_state)
         
     else:
         self.logger.debug("Querying model for action.")
