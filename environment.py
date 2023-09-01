@@ -433,7 +433,8 @@ class BombeRLeWorld(GenericWorld):
                     arena[x, y] = WALL
 
         # Clean the start positions
-        start_positions = [(1, 1), (1, s.ROWS - 2), (s.COLS - 2, 1), (s.COLS - 2, s.ROWS - 2)]
+        #start_positions = [(1, 1), (1, s.ROWS - 2), (s.COLS - 2, 1), (s.COLS - 2, s.ROWS - 2)]
+        start_positions = [(int(s.ROWS/2)+1, int(s.COLS/2)), (int(s.ROWS/2)+1, int(s.COLS/2)), (int(s.ROWS/2)+1, int(s.COLS/2)), (int(s.ROWS/2)+1, int(s.COLS/2))]
         for (x, y) in start_positions:
             for (xx, yy) in [(x, y), (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]:
                 if arena[xx, yy] == 1:

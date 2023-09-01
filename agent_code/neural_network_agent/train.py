@@ -10,6 +10,7 @@ import numpy as np
 from typing import List
 
 import events as e
+from .helper import plot
 from .callbacks import state_to_features, get_valid_actions
 
 
@@ -86,14 +87,18 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     except:
         self.logger.debug(f'Position of agent not found: no new_game_state')
 
+    # Update total reward from round
+    reward = reward_from_events(self, events)
+    self.round_reward += reward
 
     # state_to_features is defined in callbacks.py
     self.transitions.append(Transition(state_to_features(old_game_state),
                                         self_action, state_to_features(new_game_state), 
-                                        reward_from_events(self, events), 
+                                        reward, 
                                         new_game_state))
-    train_step(self,[self.transitions[-1]])
+    
     # TODO: Perform a training step here?
+    train_step(self,[self.transitions[-1]])
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -117,7 +122,19 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
                                        None))
 
     # Train the model
-    train(self)
+    #train(self)
+    
+    # Plotting the rewards
+    self.round_reward_history.append(self.round_reward)
+    self.eps_history.append(self.eps)
+    # TODO: implemental incremental mean update for performance?
+    if len(self.round_reward_history)<50:
+        self.mean_round_reward_history.append(np.mean(self.round_reward_history)) 
+    else:
+        self.mean_round_reward_history.append(np.mean(self.round_reward_history[-50:])) 
+    plot(self.round_reward_history, self.mean_round_reward_history,self.eps_history)
+
+    self.round_reward = 0
 
     # Store the model
     self.model.save()
