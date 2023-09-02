@@ -1,86 +1,76 @@
 import os
+import pickle
 import random
-from collections import deque
-
 from . import model as m
-from . import callbacks_rb as crb
-import settings as s
-
-import numpy as np
-
 import torch
 import torch.nn as nn
 from torch.nn.functional import softmax
 import torch.optim as optim
 
+import numpy as np
+from collections import deque
+
+#from coin_learning_agent
 from pathfinding.core.grid import Grid
 from pathfinding.finder.a_star import AStarFinder
 
-def state_to_features(game_state: dict) -> torch.tensor:
-    ''' Dict keys: round, step, field, bombs, explosion_map, my_agent, others'''
-    
+import settings as s
+
+from . import callbacks_rb as crb
+
+def state_to_features(game_state: dict) -> np.array:
+    '''    round = game_state['round']
+        step = game_state['step']
+        field = game_state['field']
+        bombs = game_state['bombs']
+        explosion_map = game_state['explosion_map']
+        coins = game_state['coins']
+        my_agent = game_state['self']
+        others = game_state['others']'''
     # This is the dict before the game begins and after it ends
     if game_state is None:
-        raise ValueError("Cannot convert empty state to feature (game_state should not be None)")
+        return None
 
-    # Construct features using multiple layers
+    # For example, you could construct several channels of equal shape, ...
     channels = []
-
-    # Field (wall and crate locations)
-    field_channel = game_state['field']
-
-    field_shape = field_channel.shape
-    channels.append(field_channel)
-
-    # Coin positions
-    coins = game_state['coins']
-
-    coin_channel = np.zeros(field_shape) # 0 == no coin
-    for c in coins:
-        coins[c] = 1 # 1 == coin
-    channels.append(coin_channel)
-
+    # Field
+    field = game_state['field']
+    fshape = field.shape
+    channels.append(field)
+    # Coins
+    coin_list = game_state['coins']
+    coins = np.zeros(fshape)
+    for coin in coin_list:
+        coins[coin] = 1
+    channels.append(coins)
     # Agents
-    my_agent = game_state['self'][-1]
-    other_agents = game_state['others']
-
-    agent_channel = np.zeros(field_shape) # 0 == no agent
-    agent_channel[my_agent[-1]] = -1 # -1 == my agent
-    for agent in other_agents:
-        agent_channel[agent[-1]] = 1 # 1 == enemy agent
-    channels.append(agent_channel)
-
-    # Bomb positions
-    bombs = game_state['bombs']
-
-    bomb_channel = np.zeros(field_shape) # 0 == no bomb
-    for bomb in bombs:
-        bomb_channel[bomb[0]] = bomb[1] + 1 # > 0 == timer of bomb + 1
-    channels.append(bomb_channel)
-
-    # Positions where an agent could place a bomb
-    bombs_possible_channel = np.zeros(field_shape) # 0 == bomb can't be placed here
-    for agent in other_agents + my_agent:
-        bombs_possible_channel[agent[-1]] = int(agent[2]) # 1 == bomb could be placed here
-    channels.append(bombs_possible_channel)
-
+    my_pos = game_state['self'][-1]
+    agent_list = game_state['others']
+    agents = np.zeros(fshape)
+    agents[my_pos] = -1
+    for agent in agent_list:
+        agents[agent[-1]] = 1
+    channels.append(agents)
+    # Bombs possible
+    bombs_possible = np.zeros(fshape)
+    bombs_possible[my_pos] = int(game_state['self'][2])
+    for agent in agent_list:
+        bombs_possible[agent[-1]] = int(agent[2])
+    channels.append(bombs_possible)
+    # Bombs
+    bomb_list = game_state['bombs']
+    bombs = np.zeros(fshape)
+    for bomb in bomb_list:
+        bombs[bomb[0]] = bomb[1] + 1
+    channels.append(bombs)
     # Explosions
     explosion_map = game_state['explosion_map']
     channels.append(explosion_map)
-    # Steps
-    relative_step = game_state['step']/s.MAX_STEPS
-
-    # Combine channels
+    
+    # concatenate them as a feature tensor (they must have the same shape), ...
     stacked_channels = np.stack(channels)
-
-    # Flatten for linear NN?
-    output = stacked_channels.reshape(-1)
-    np.append(output,relative_step)
-
-    # Return output as tensor
-    return torch.as_tensor(output, dtype=torch.float32)
-
-
+    #return output
+    return torch.as_tensor(stacked_channels, dtype=torch.float32)
 
 ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']) # [1, 2, 3, 4, 5, 6]
 
@@ -103,7 +93,10 @@ DUMMY_STATE = {"round" : 0,
 # Network architecture
 INPUT_DIM = len(state_to_features(DUMMY_STATE)) # For a linear model
 OUTPUT_DIM = len(ACTIONS)
-DIMENSIONS = [INPUT_DIM, 300, 100, 50, 20, OUTPUT_DIM] #[867, 20, 6]
+DIMENSIONS = [INPUT_DIM, INPUT_DIM, 1, OUTPUT_DIM] #[867, 20, 6]
+N_KERNELS_CONV = [1 for el in DIMENSIONS] # improve later
+N_KERNELS_POOL = [2 for el in DIMENSIONS] # imporve later
+
 ACTIVATION = nn.ReLU
 
 # Parameters
@@ -128,7 +121,7 @@ def setup(self):
     self.PATH = "./model/my-model.pt" #'/'.join((MODEL_FOLDER,MODEL_NAME))
     self.DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    self.model = m.QNetwork(DIMENSIONS, ACTIVATION)
+    self.model = m.CNN(DIMENSIONS, N_KERNELS_CONV, N_KERNELS_POOL, s.ROWS, s.COLS, ACTIVATION)
     
     if os.path.isfile(self.PATH):
         # TODO: Disable dropout and batch norm
