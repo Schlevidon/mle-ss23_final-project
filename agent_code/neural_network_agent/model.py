@@ -23,7 +23,7 @@ class QNetwork(nn.Module):
     def forward(self, x):
         for layer in self.layers:
             x = layer(x)
-        return x#
+        return x
     
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
