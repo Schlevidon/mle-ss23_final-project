@@ -4,7 +4,7 @@ import random
 from . import model as m
 import torch
 import torch.nn as nn
-from torch.nn.functional import softmax
+from torch.nn.functional import softmax, normalize
 import torch.optim as optim
 
 import numpy as np
@@ -93,8 +93,8 @@ DUMMY_STATE = {"round" : 0,
 # Network architecture
 INPUT_DIM = len(state_to_features(DUMMY_STATE)) # For a linear model
 OUTPUT_DIM = len(ACTIONS)
-DIMENSIONS = [INPUT_DIM, INPUT_DIM, 1, OUTPUT_DIM] #[867, 20, 6]
-N_KERNELS_CONV = [1 for el in DIMENSIONS] # improve later
+DIMENSIONS = [INPUT_DIM, INPUT_DIM, 1, OUTPUT_DIM] #[6, 6, 6]
+N_KERNELS_CONV = [3 for el in DIMENSIONS] # improve later
 N_KERNELS_POOL = [2 for el in DIMENSIONS] # imporve later
 
 ACTIVATION = nn.ReLU
@@ -111,6 +111,7 @@ BATCH_SIZE = 16
 # TODO: Update EPS
 EPS = 0.1
 EPS_DECAY = 0.999
+# TODO: implement a minimal EPS
 GAMMA = 0.99
 RANDOM_SEED = None
 CRITERION = torch.nn.MSELoss()
@@ -159,10 +160,14 @@ def setup(self):
 
 
 def act(self, game_state: dict) -> str:
-    #return crb.act(self, game_state)
+    
+    if self.train:
+        return crb.act(self, game_state)
+    
 
     valid_actions_mask = get_valid_actions(game_state)
     self.logger.debug(f'Valid actions: {ACTIONS[valid_actions_mask]}')
+    
     
     if self.train and random.random() < self.eps:
         # Exploratory move
@@ -172,7 +177,13 @@ def act(self, game_state: dict) -> str:
         #pos_agent, pos_coin, field= game_state['self'][3], game_state['coins'], game_state['field']
         #selected_action =  find_ideal_path(pos_agent, pos_coin, field)
         selected_action = np.random.choice(ACTIONS[valid_actions_mask])
-        return crb.act(self, game_state)
+        
+        rb_action = crb.act(self, game_state)
+        if rb_action is None:
+            raise Exception("RB action none")
+            rb_action = 'WAIT' 
+        return rb_action
+        
         
     else:
         self.logger.debug("Querying model for action.")
@@ -181,7 +192,8 @@ def act(self, game_state: dict) -> str:
             Q_values = self.model(state_to_features(game_state))
             self.logger.debug(f"Q Values: {Q_values}")
             #Q_values = Q_values[valid_actions_mask]
-
+        #print(Q_values,Q_values.shape)
+        Q_values = normalize(Q_values, p=1, dim=0)
         probs = np.array(softmax(Q_values[valid_actions_mask],dim=0))
         self.logger.debug(f"Probs: {probs}")
 
@@ -216,7 +228,7 @@ def get_valid_actions(game_state) -> np.array:
     left =  tile_is_free(game_state, agent_x - 1, agent_y)
     right =  tile_is_free(game_state, agent_x + 1, agent_y)
     bomb = game_state["self"][2]
-    #bomb = False # disable bombs for now
+    bomb = False # disable bombs for now
 
     return np.array([up, right, down, left, True, bomb])
 

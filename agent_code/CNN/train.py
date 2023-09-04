@@ -98,7 +98,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
                                         new_game_state))
     
     # TODO: Perform a training step here?
-    #train_step(self,[self.transitions[-1]])
+    if len(self.transitions) < self.batch_size:
+        sample = self.transitions
+    else:
+        sample = random.sample(self.transitions, self.batch_size)
+    train_step(self,sample)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -122,7 +126,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
                                        None))
 
     # Train the model
-    train(self)
+    #train(self)
     
     # Plotting the rewards
     self.round_reward_history.append(self.round_reward)
@@ -162,21 +166,25 @@ def train_step(self, batch):
     # TODO: how to send tensors to GPU if available
     transitions = list(zip(*batch))
     actions = transitions[1]
+    #if None in actions:
+    #    print(actions)
     old_states = torch.stack(transitions[0]).to(self.DEVICE) # state dimensions not correct 
-    print(old_states.shape, len(batch))
+    #print(old_states.shape, len(batch))
     new_states = torch.stack(transitions[2]).to(self.DEVICE) # state dimensions not correct 
     #print(old_states.shape, new_states.shape)
     reward = torch.tensor(transitions[3]).to(self.DEVICE)
     new_states_dict = transitions[-1]
 
-    #mask_nan = ~np.isnan(new_states)
-    #mask_nan = [np.isnan(state) for state in new_states]
-    mask_nan = torch.any(np.isnan(new_states), 1)
+    mask_nan = torch.any(torch.any(torch.any(np.isnan(new_states), 1),1),1) # 
     #new_states = new_states[mask_nan].reshape(int(np.sum(mask_nan) // new_states.shape[1]),-1)
 
     #terminal_states = torch.isnan(new_states).to(self.DEVICE)
     
-    outputs = self.model(old_states) # batch_size x 6
+    outputs = self.model(old_states) # batch_size x 6, 6
+    # TODO: the output may give the wrong size --> occurs when batchsize=1 --> squeeze
+    if len(outputs.shape)==1:
+        outputs = outputs.unsqueeze(0)
+        #print('jap, wir waren hier')
     # -> [0.1, 0.3, 0.6], -> one-hot [0.1, 10, 0.6] 
     
     with torch.no_grad():
@@ -188,7 +196,9 @@ def train_step(self, batch):
         #Q_max = Q_values.max(1)[0]
         for a, r, Q_new, done, s, dct in zip(actions, reward, target, mask_nan, new_states,new_states_dict): # Transition: s, a -> s = 6a
             a_idx = ACTIONS_DICT[a]
+            
             Q_new[a_idx] = r
+
             if not done:
                 valid_actions_mask = get_valid_actions(dct)
                 Q_new[a_idx] += self.gamma * torch.max(self.model(s)[valid_actions_mask]) #[0] ## for multi-dim input
@@ -220,6 +230,7 @@ def reward_from_events(self, events: List[str]) -> int:
         "LOOP" : -50,
         e.INVALID_ACTION : -5,
         e.BOMB_DROPPED : -10,
+        e.CRATE_DESTROYED: 50,
         e.KILLED_SELF : -300
         #e.SURVIVED_ROUND : 100
     }

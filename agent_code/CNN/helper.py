@@ -45,7 +45,7 @@ def plot(scores, mean_scores, eps):
     plt.xlabel('Number of Games')
     plt.text(len(eps)-1, eps[-1], str(eps[-1]))
 
-    plt.legend()
+    #plt.legend()
     plt.show(block=False)
     plt.pause(.1)
 

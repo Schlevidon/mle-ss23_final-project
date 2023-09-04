@@ -14,7 +14,7 @@ class CNN(nn.Module):
         for i, (ch_in, ch_out, kernel_size_conv, kernel_size_pool) in enumerate(zip(n_features[:-2], n_features[1:-1],\
                                                                                      n_kernels_conv,n_kernels_pool)):
             
-            conv = nn.Conv2d(ch_in, ch_out, kernel_size=kernel_size_conv, bias=True, stride=1, padding=0) #padding(?)
+            conv = nn.Conv2d(ch_in, ch_out, kernel_size=kernel_size_conv, bias=True, stride=1, padding='same') #padding(?)
             layers.append(conv)
             if i != n_layers-2:
                 layers.append(activation()) 
@@ -34,7 +34,11 @@ class CNN(nn.Module):
     def forward(self, x):
         for layer in self.layers:
             x = layer(x)
-        return x.squeeze()
+            #print(layer,x.shape)
+        if len(x.shape) == 3: # batch x 1 x 6 -> batch x 6
+            return x.squeeze(1)
+        else: # 1 x 6
+            return x.squeeze()
     
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):

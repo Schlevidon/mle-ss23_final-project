@@ -5,6 +5,8 @@ import torch.nn as nn
 
 import numpy as np
 
+import settings as s
+
 class QNetwork(nn.Module):
     def __init__(self, n_features, activation=nn.ReLU):
         super(QNetwork, self).__init__()
