@@ -109,8 +109,9 @@ OPTIMIZER_PARAMS = {
 BATCH_SIZE = 16
 
 # TODO: Update EPS
-EPS = 0.1
+EPS = 0.5
 EPS_DECAY = 0.999
+EPS_MIN = 0.05
 # TODO: implement a minimal EPS
 GAMMA = 0.99
 RANDOM_SEED = None
@@ -149,6 +150,7 @@ def setup(self):
     self.optimizer_params = OPTIMIZER_PARAMS
     self.eps = EPS
     self.eps_decay = EPS_DECAY
+    self.eps_min = EPS_MIN
 
     # For rule-based agent only
     self.bomb_history = deque([], 5)

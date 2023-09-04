@@ -144,7 +144,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.model.save()
 
     # Update EPS
-    self.eps *= self.eps_decay
+    if self.eps > self.eps_min:
+        self.eps *= self.eps_decay
+    
     self.logger.debug(f'EPS_value: {self.eps}')
 
 def train(self):

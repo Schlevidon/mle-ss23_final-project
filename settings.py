@@ -33,7 +33,7 @@ SCENARIOS = {
     ,
     "one-coin": {
         "CRATE_DENSITY": 0,
-        "COIN_COUNT": 1
+        "COIN_COUNT": 5
     }
     ,
     "loot-crate": { 
