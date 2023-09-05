@@ -135,6 +135,44 @@ class QNetwork(nn.Module):
     def train_step(self, agent, batch):
         # TODO: how to send tensors to GPU if available
         transitions = Transition(*zip(*batch))
+        
+        actions = transitions.action #batch_size
+        old_states = torch.vstack(transitions.state).to(DEVICE) # batch_size x features
+        new_states = torch.vstack(transitions.next_state).to(DEVICE) # batch_size x features
+        reward = torch.tensor(transitions.reward, dtype=torch.float32).to(DEVICE) # batch_size
+        new_states_dict = transitions.next_state_dict # batch_size
+
+        mask_nan = torch.any(torch.isnan(new_states), 1) # batch_size
+        a_idx = torch.tensor([ACTIONS_DICT[a] for a in actions]) # batch_size
+
+        outputs = agent.model(old_states).to(DEVICE) # batch_size x 6
+        
+        target = outputs.clone().to(DEVICE) # batch_size x 6
+
+        # For terminal states
+        target[:, a_idx] = reward # batch_size
+
+        # For non terminal states
+        if not torch.any(mask_nan):
+            valid_actions_masks = torch.vstack([torch.from_numpy(get_valid_actions(dct)) for (dct, done) in zip(new_states_dict, mask_nan) if not done]) # (batch_size - terminal states) x 6
+            with torch.no_grad():
+                Q_pred = agent.model(new_states[~mask_nan]) # (batch_size - teminal state) x 6
+                Q_pred[~valid_actions_masks] = -float('inf') # invalid actions have Q-value -infinity -> never get selected in max
+                Q_max = torch.max(Q_pred, 1)[0] # batch_size - terminal_states
+            
+            target[~mask_nan, a_idx[~mask_nan]] += GAMMA * Q_max # batch_size - terminal_states
+
+        #add end of round 
+        agent.optimizer.zero_grad()
+        
+        loss = CRITERION(outputs, target)
+        loss.backward()
+        agent.optimizer.step()
+        
+
+    def train_step2(self, agent, batch):
+        # TODO: how to send tensors to GPU if available
+        transitions = Transition(*zip(*batch))
 
         actions = transitions.action
         old_states = torch.vstack(transitions.state).to(DEVICE)

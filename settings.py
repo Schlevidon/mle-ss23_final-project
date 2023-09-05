@@ -52,7 +52,7 @@ MAX_AGENTS = 4
 #MAX_AGENTS = 2 #changed
 
 # Round properties
-MAX_STEPS = 100 #400
+MAX_STEPS = 200 #400
 
 # GUI properties
 GRID_SIZE = 30

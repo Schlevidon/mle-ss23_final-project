@@ -97,7 +97,7 @@ def get_valid_actions(game_state) -> np.array:
     right =  tile_is_free(game_state, agent_x + 1, agent_y)
     wait = True
     bomb = game_state["self"][2]
-    #bomb = False # disable bombs for now
+    bomb = False # disable bombs for now
 
     return np.array([up, right, down, left, wait, bomb])
 

@@ -12,7 +12,7 @@ import numpy as np
 
 import events as e
 from .helper import plot
-from .globals import Transition, TRANSITION_HISTORY_SIZE, OPTIMIZER_PARAMS, EPS_START, EPS_DECAY, BATCH_SIZE
+from .globals import Transition, TRANSITION_HISTORY_SIZE, OPTIMIZER_PARAMS, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW
 
 def setup_training(self):
 
@@ -84,10 +84,10 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.eps_history.append(self.eps)
 
     self.round_reward_history.append(self.round_reward)
-    if len(self.round_reward_history) < 50: # TODO : move this parameter
+    if len(self.round_reward_history) < AVERAGE_REWARD_WINDOW:
         self.mean_round_reward_history.append(np.mean(self.round_reward_history)) 
     else:
-        self.mean_round_reward_history.append(np.mean(self.round_reward_history[-50:])) 
+        self.mean_round_reward_history.append(np.mean(self.round_reward_history[-AVERAGE_REWARD_WINDOW:])) 
     plot(self.round_reward_history, self.mean_round_reward_history, self.eps_history)
 
     # Reset metrics

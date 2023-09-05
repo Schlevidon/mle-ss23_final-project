@@ -18,7 +18,7 @@ ALWAYS_RB = False
 SAMPLE_RB = False
 
 # Stochastic policy?
-STOCHASTIC_POLICY = True
+STOCHASTIC_POLICY = False
 
 # TODO : Set seed to make results reproducible?
 RANDOM_SEED = None
@@ -37,7 +37,7 @@ OPTIMIZER_PARAMS = {
 }
 CRITERION = torch.nn.MSELoss()
 
-BATCH_SIZE = 16
+BATCH_SIZE = 512 # 16
 
 # epsilon for epsilon-greedy policy
 EPS_START = 0.1
@@ -46,3 +46,5 @@ EPS_DECAY = 0.999
 
 # Reward discount factor
 GAMMA = 0.99
+
+AVERAGE_REWARD_WINDOW = 50
