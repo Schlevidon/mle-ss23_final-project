@@ -6,8 +6,7 @@ import torch.nn as nn
 import numpy as np
 
 import settings as s
-from .callbacks import ACTIONS, DEVICE, ACTIONS_DICT
-from .train import GAMMA, CRITERION
+from .globals import GAMMA, CRITERION, ACTIONS, DEVICE, ACTIONS_DICT, Transition
 from .helper import get_valid_actions
 
 # dummy state to determine feature dimension
@@ -90,7 +89,7 @@ class QNetwork(nn.Module):
 
         coin_channel = np.zeros(field_shape) # 0 == no coin
         for c in coins:
-            coins[c] = 1 # 1 == coin
+            coin_channel[c] = 1 # 1 == coin
         channels.append(coin_channel)
 
         # Agents
@@ -133,14 +132,16 @@ class QNetwork(nn.Module):
         # Return output as tensor
         return torch.as_tensor(output, dtype=torch.float32)
 
-    def train_step(self, batch, agent):
+    def train_step(self, agent, batch):
         # TODO: how to send tensors to GPU if available
         transitions = Transition(*zip(*batch))
-        actions = transitions[1]
-        old_states = torch.vstack(transitions[0]).to(DEVICE)
-        new_states = torch.vstack(transitions[2]).to(DEVICE)
-        reward = torch.tensor(transitions[3]).to(DEVICE)
-        new_states_dict = transitions[-1]
+
+        actions = transitions.action
+        old_states = torch.vstack(transitions.state).to(DEVICE)
+        new_states = torch.vstack(transitions.next_state).to(DEVICE)
+        reward = torch.tensor(transitions.reward).to(DEVICE)
+        new_states_dict = transitions.next_state_dict
+
         mask_nan = torch.any(np.isnan(new_states), 1)
         outputs = agent.model(old_states) # batch_size x 6
         

@@ -7,7 +7,7 @@ from pathfinding.core.grid import Grid
 from pathfinding.finder.a_star import AStarFinder
 
 
-plt.ion()
+#plt.ion()
 #fig, (score_ax, eps_ax) = plt.subplots(2, sharex=True)
 '''def plot(scores, mean_scores, eps):
     display.clear_output(wait=True)
@@ -31,9 +31,8 @@ plt.ion()
     plt.pause(.1)'''
 
 def plot(scores, mean_scores, eps):
-    
-    display.clear_output(wait=True)
-    display.display(plt.gcf())
+    #display.clear_output(wait=True)
+    #display.display(plt.gcf())
     plt.clf()
     ax1 = plt.subplot(211)
     plt.title('Training...')
@@ -50,8 +49,6 @@ def plot(scores, mean_scores, eps):
     plt.ylabel('Epsilon')
     plt.xlabel('Number of Games')
     plt.text(len(eps)-1, eps[-1], str(eps[-1]))
-
-    plt.legend()
     plt.show(block=False)
     plt.pause(.1)
 

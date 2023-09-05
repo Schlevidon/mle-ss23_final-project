@@ -12,33 +12,7 @@ import numpy as np
 
 import events as e
 from .helper import plot
-from .callbacks import MODEL_TYPE
-
-
-# This is only an example!
-# Save next_state_dict to determine valid actions
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward', 'next_state_dict'))
-
-# Parameters
-TRANSITION_HISTORY_SIZE = 100_000 
-
-OPTIMIZER_PARAMS = {
-    "lr" : 1e-3,
-    "eps" : 1e-9,
-    "betas" : [0.9, 0.98]
-}
-CRITERION = torch.nn.MSELoss()
-
-BATCH_SIZE = 16
-
-# epsilon for epsilon-greedy policy
-EPS_START = 0.1
-EPS_END = 0.001
-EPS_DECAY = 0.999
-
-# Reward discount factor
-GAMMA = 0.99
+from .globals import Transition, TRANSITION_HISTORY_SIZE, OPTIMIZER_PARAMS, EPS_START, EPS_DECAY, BATCH_SIZE
 
 def setup_training(self):
 
@@ -77,24 +51,27 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.round_reward += reward
 
     # state_to_features is defined in model.py
-    self.transitions.append(Transition(MODEL_TYPE.state_to_features(old_game_state),
+    self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(old_game_state),
                                         self_action, 
-                                        MODEL_TYPE.state_to_features(new_game_state), 
+                                        self.MODEL_TYPE.state_to_features(new_game_state), 
                                         reward,
                                         new_game_state))
     
     # Train on one random batch
     # TODO : implement importance sampling
-    batch = random.sample(self.transitions)
-    self.model.train_step(batch, self)
+    if len(self.transitions) < BATCH_SIZE:
+        sample = self.transitions
+    else:
+        sample = random.sample(self.transitions, BATCH_SIZE)
+    self.model.train_step(self, sample)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
 
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
-    size = MODEL_TYPE.state_to_features(last_game_state).shape
-    self.transitions.append(Transition(MODEL_TYPE.state_to_features(last_game_state), 
+    size = self.MODEL_TYPE.state_to_features(last_game_state).shape
+    self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(last_game_state), 
                                        last_action, 
                                        torch.ones(size)*float('nan'), # TODO : find a better solution (this is memory inefficient and complicated)
                                        reward_from_events(self, events),
@@ -123,8 +100,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     # Update EPS
     # TODO : write a scheduler?
-    self.eps *= self.eps_decay
+    self.eps *= EPS_DECAY
     self.logger.debug(f'EPS_value: {self.eps}')
+    
 """
 def train(self):
     #Train for a whole epoch

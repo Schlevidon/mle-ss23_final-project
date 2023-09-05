@@ -1,14 +1,8 @@
 import numpy as np
-
 import torch
 import torch.nn as nn
 from torch.nn.functional import softmax
 import torch.optim as optim
-
-ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB'])
-ACTIONS_DICT = {action : idx for idx, action in enumerate(ACTIONS)}
-# Set pytorch device
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 import os
 import random
@@ -17,30 +11,18 @@ from collections import deque
 from . import model as m
 from . import callbacks_rb as crb
 from .helper import get_valid_actions
+from .globals import RANDOM_SEED, DEVICE, ALWAYS_RB, SAMPLE_RB, ACTIONS, STOCHASTIC_POLICY
+
 import settings as s
-
-# TODO: Add a way to load the selected scenario to determine the number of available coins
-
-# Parameters
-MODEL_TYPE = m.QNetwork
-
-# Use rule based agent?
-ALWAYS_RB = False
-SAMPLE_RB = False
-
-# Stochastic policy?
-STOCHASTIC_POLICY = True
-
-# TODO : Set seed to make results reproducible?
-RANDOM_SEED = None
-
 
 def setup(self):
     np.random.seed(RANDOM_SEED)
     
     self.PATH = "./model/my-model.pt" #'/'.join((MODEL_FOLDER,MODEL_NAME))
  
-    self.model = MODEL_TYPE(**MODEL_TYPE.get_architecture())
+    self.MODEL_TYPE = m.QNetwork
+    # Select model type here
+    self.model = self.MODEL_TYPE(**self.MODEL_TYPE.get_architecture())
     
     if os.path.isfile(self.PATH):
         # TODO: Disable dropout and batch norm
@@ -94,7 +76,7 @@ def act(self, game_state: dict) -> str:
         # Exploitation: act greedily wrt to Q-function
         self.logger.debug("Querying model for action (greedy)")
         with torch.no_grad():
-            Q_values = self.model(MODEL_TYPE.state_to_features(game_state))
+            Q_values = self.model(self.MODEL_TYPE.state_to_features(game_state))
             self.logger.debug(f"Q Values: {Q_values}")
 
         if STOCHASTIC_POLICY:
