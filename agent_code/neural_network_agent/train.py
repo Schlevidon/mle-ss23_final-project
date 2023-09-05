@@ -1,222 +1,151 @@
 from collections import namedtuple, deque
-#from torch.utils.data import DataLoader
+from typing import List
+import pickle
 import random
+
 from tqdm import tqdm, trange
+
 import torch
 import torch.optim as optim
 
-import pickle
 import numpy as np
-from typing import List
 
 import events as e
 from .helper import plot
-from .callbacks import state_to_features, get_valid_actions
+from .callbacks import MODEL_TYPE
 
 
 # This is only an example!
+# Save next_state_dict to determine valid actions
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward', 'next_state_dict'))
 
-# Hyper parameters -- DO modify
+# Parameters
 TRANSITION_HISTORY_SIZE = 100_000 
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
-
-ACTIONS_DICT = {
-    'UP': 0,
-    'RIGHT': 1,
-    'DOWN': 2,
-    'LEFT': 3,
-    'WAIT': 4,
-    'BOMB': 5
+OPTIMIZER_PARAMS = {
+    "lr" : 1e-3,
+    "eps" : 1e-9,
+    "betas" : [0.9, 0.98]
 }
+CRITERION = torch.nn.MSELoss()
 
+BATCH_SIZE = 16
+
+# epsilon for epsilon-greedy policy
+EPS_START = 0.1
+EPS_END = 0.001
+EPS_DECAY = 0.999
+
+# Reward discount factor
+GAMMA = 0.99
 
 def setup_training(self):
-    """
-    Initialise self for training purpose.
 
-    This is called after `setup` in callbacks.py.
-
-    :param self: This object is passed to all callbacks and you can set arbitrary values.
-    """
-    # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
+    # Setup transition history
+    # TODO : Write a class for ExperienceBuffer?
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
 
-    # TODO: load optimizer values
-    self.optimizer = optim.Adam(self.model.parameters(), **self.optimizer_params)
+    # TODO : load previous optimizer values
+    # TODO : try different optimizers
+    self.optimizer = optim.Adam(self.model.parameters(), **OPTIMIZER_PARAMS)
+
+    # Initialize epsilon for training
+    # TODO : load previous epsilon when resuming training?
+    self.eps = EPS_START
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
-    """
-    Called once per step to allow intermediate rewards based on game events.
 
-    When this method is called, self.events will contain a list of all game
-    events relevant to your agent that occurred during the previous step. Consult
-    settings.py to see what events are tracked. You can hand out rewards to your
-    agent based on these events and your knowledge of the (new) game state.
+    # TODO : Remove for agent submission (or maybe not if train is never called)
+    events.append(e.ANY_ACTION)
 
-    This is *one* of the places where you could update your agent.
-
-    :param self: This object is passed to all callbacks and you can set arbitrary values.
-    :param old_game_state: The state that was passed to the last call of `act`.
-    :param self_action: The action that you took.
-    :param new_game_state: The state the agent is in now.
-    :param events: The events that occurred when going from  `old_game_state` to `new_game_state`
-    """    """
-    Your agent should parse the input, think, and take a decision.
-    When not in training mode, the maximum execution time for this method is 0.5s.
-
-    :param self: The same object that is passed to all of your callbacks.
-    :param game_state: The dictionary that describes everything on the board.
-    :return: The action to take as a string.
-    """
-    self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
-
-    # Idea: Add your own events to hand out rewards
-    events.append("ACTION")
-
-    # If agent has been in the same location three times recently, it's a loop
+    # If agent has been in the same location two times recently, it's a loop
     try:
         agent_pos = new_game_state['self'][-1]
         if self.coordinate_history.count(agent_pos) > 2:
-            events.append("LOOP")
+            events.append(e.LOOP)
         self.coordinate_history.append(agent_pos)
     except:
         self.logger.debug(f'Position of agent not found: no new_game_state')
+
+    self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
+
 
     # Update total reward from round
     reward = reward_from_events(self, events)
     self.round_reward += reward
 
-    # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state),
-                                        self_action, state_to_features(new_game_state), 
-                                        reward, 
+    # state_to_features is defined in model.py
+    self.transitions.append(Transition(MODEL_TYPE.state_to_features(old_game_state),
+                                        self_action, 
+                                        MODEL_TYPE.state_to_features(new_game_state), 
+                                        reward,
                                         new_game_state))
     
-    # TODO: Perform a training step here?
-    train_step(self,[self.transitions[-1]])
+    # Train on one random batch
+    # TODO : implement importance sampling
+    batch = random.sample(self.transitions)
+    self.model.train_step(batch, self)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
-    """
-    Called at the end of each game or when the agent died to hand out final rewards.
-    This replaces game_events_occurred in this round.
 
-    This is similar to game_events_occurred. self.events will contain all events that
-    occurred during your agent's final step.
-
-    This is *one* of the places where you could update your agent.
-    This is also a good place to store an agent that you updated.
-
-    :param self: The same object that is passed to all of your callbacks.
-    """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    size = state_to_features(last_game_state).shape
-    self.transitions.append(Transition(state_to_features(last_game_state), 
-                                       last_action, torch.ones(size)*float('nan'), 
+
+    size = MODEL_TYPE.state_to_features(last_game_state).shape
+    self.transitions.append(Transition(MODEL_TYPE.state_to_features(last_game_state), 
+                                       last_action, 
+                                       torch.ones(size)*float('nan'), # TODO : find a better solution (this is memory inefficient and complicated)
                                        reward_from_events(self, events),
                                        None))
 
-    # Train the model
+    # TODO : Train the model for longer at the end of a round?
     #train(self)
     
-    # Plotting the rewards
-    self.round_reward_history.append(self.round_reward)
+    # Plot metrics
     self.eps_history.append(self.eps)
-    # TODO: implemental incremental mean update for performance?
-    if len(self.round_reward_history)<50:
+
+    self.round_reward_history.append(self.round_reward)
+    if len(self.round_reward_history) < 50: # TODO : move this parameter
         self.mean_round_reward_history.append(np.mean(self.round_reward_history)) 
     else:
         self.mean_round_reward_history.append(np.mean(self.round_reward_history[-50:])) 
-    plot(self.round_reward_history, self.mean_round_reward_history,self.eps_history)
+    plot(self.round_reward_history, self.mean_round_reward_history, self.eps_history)
 
+    # Reset metrics
     self.round_reward = 0
 
     # Store the model
+    # TODO: only update if the new model is better?
+    # TODO: or create multiple checkpoints?
     self.model.save()
 
     # Update EPS
+    # TODO : write a scheduler?
     self.eps *= self.eps_decay
     self.logger.debug(f'EPS_value: {self.eps}')
-
+"""
 def train(self):
-
-    model = self.model.to(self.DEVICE)
-    #print(model)
+    #Train for a whole epoch
     optimizer = self.optimizer
 
     transitions = self.transitions
-    #data = DataLoader(transitions, batch_size=self.batch_size, shuffle=True)
 
     random.shuffle(transitions)
     
     for i in range(0, len(transitions), self.batch_size):
         batch = list(transitions)[i:i + self.batch_size]
         train_step(self, batch)
-
-def train_step(self, batch):
-    # TODO: how to send tensors to GPU if available
-    transitions = list(zip(*batch))
-    actions = transitions[1]
-    old_states = torch.vstack(transitions[0]).to(self.DEVICE)
-    new_states = torch.vstack(transitions[2]).to(self.DEVICE)
-    #print(old_states.shape, new_states.shape)
-    reward = torch.tensor(transitions[3]).to(self.DEVICE)
-    new_states_dict = transitions[-1]
-
-    #mask_nan = ~np.isnan(new_states)
-    #mask_nan = [np.isnan(state) for state in new_states]
-    mask_nan = torch.any(np.isnan(new_states), 1)
-    #new_states = new_states[mask_nan].reshape(int(np.sum(mask_nan) // new_states.shape[1]),-1)
-
-    #terminal_states = torch.isnan(new_states).to(self.DEVICE)
-    
-    outputs = self.model(old_states) # batch_size x 6
-    # -> [0.1, 0.3, 0.6], -> one-hot [0.1, 10, 0.6] 
-    
-    with torch.no_grad():
-        #Q_values = self.model(new_states[~mask_nan])
-        target = outputs.clone().to(self.DEVICE) # batch_size -> batch_size x 6
-        # Q(s,a)
-        # target:  R + gamma * max_a[ Q(s',a)- Q(s,a)] q + alpha (R+gamma * max()) \approx R(s,a,s')+ \gamma ' max(Q(s'))
-        # TODO: maybe need to filter out invalid actions before taking max
-        #Q_max = Q_values.max(1)[0]
-        for a, r, Q_new, done, s, dct in zip(actions, reward, target, mask_nan, new_states,new_states_dict): # Transition: s, a -> s = 6a
-            a_idx = ACTIONS_DICT[a]
-            Q_new[a_idx] = r
-            if not done:
-                valid_actions_mask = get_valid_actions(dct)
-                Q_new[a_idx] += self.gamma * torch.max(self.model(s)[valid_actions_mask]) #[0] ## for multi-dim input
-
-        #target[mask_nan] += self.gamma * Q_values.max(1)[0]
-    
-    self.optimizer.zero_grad()
-    
-    loss = self.criterion(outputs, target)
-    loss.backward()
-
-    self.optimizer.step()
-    self.logger.debug(f'Q_values: {Q_new}, Loss: {loss}')
-
-
+"""
 
 def reward_from_events(self, events: List[str]) -> int:
-    """
-    *This is not a required function, but an idea to structure your code.*
-
-    Here you can modify the rewards your agent get so as to en/discourage
-    certain behavior.
-    """
 
     game_rewards = {
         e.COIN_COLLECTED: 100,
         e.OPPONENT_ELIMINATED: 1000,
-        "ACTION" : -1,
-        "LOOP" : -50,
+        e.ANY_ACTION : -1,
+        e.LOOP : -50,
         e.INVALID_ACTION : -5,
         e.BOMB_DROPPED : -10,
         e.KILLED_SELF : -300

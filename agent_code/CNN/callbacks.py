@@ -111,7 +111,7 @@ BATCH_SIZE = 16
 # TODO: Update EPS
 EPS = 0.5
 EPS_DECAY = 0.999
-EPS_MIN = 0.05
+EPS_MIN = 0.001
 # TODO: implement a minimal EPS
 GAMMA = 0.99
 RANDOM_SEED = None
@@ -159,13 +159,20 @@ def setup(self):
     self.current_round = 0
     
 
-
+#select eigentlich irgendsowas wie 
+#if np.random.random() > self.eps: 
+#    state = torch.tensor([observation]).to(self.Qvalues)
+#    action = self.Q_evaluation.forward(state)
+#    action = t.argmax(action).item
+#else: 
+#    action = np.random.choice(self.ACTIONS)
+#    return action 
 
 def act(self, game_state: dict) -> str:
-    
+    """
     if self.train:
         return crb.act(self, game_state)
-    
+    """
 
     valid_actions_mask = get_valid_actions(game_state)
     self.logger.debug(f'Valid actions: {ACTIONS[valid_actions_mask]}')
@@ -179,13 +186,13 @@ def act(self, game_state: dict) -> str:
         #pos_agent, pos_coin, field= game_state['self'][3], game_state['coins'], game_state['field']
         #selected_action =  find_ideal_path(pos_agent, pos_coin, field)
         selected_action = np.random.choice(ACTIONS[valid_actions_mask])
-        
+        """
         rb_action = crb.act(self, game_state)
         if rb_action is None:
             raise Exception("RB action none")
             rb_action = 'WAIT' 
         return rb_action
-        
+        """
         
     else:
         self.logger.debug("Querying model for action.")
@@ -195,21 +202,21 @@ def act(self, game_state: dict) -> str:
             self.logger.debug(f"Q Values: {Q_values}")
             #Q_values = Q_values[valid_actions_mask]
         #print(Q_values,Q_values.shape)
-        Q_values = normalize(Q_values, p=1, dim=0)
-        probs = np.array(softmax(Q_values[valid_actions_mask],dim=0))
-        self.logger.debug(f"Probs: {probs}")
+        #Q_values = normalize(Q_values, p=1, dim=0)
+        #probs = np.array(softmax(Q_values[valid_actions_mask],dim=0))
+        #self.logger.debug(f"Probs: {probs}")
 
-        selected_action = np.random.choice(ACTIONS[valid_actions_mask], p=probs)
+        #selected_action = np.random.choice(ACTIONS[valid_actions_mask], p=probs)
         
-        #self.logger.debug(f"Q Values: {Q_values}")
-        #max_Q = torch.max(Q_values[valid_actions_mask])
-        #mask = np.array((Q_values == max_Q)) & valid_actions_mask
-        #best_actions = ACTIONS[mask]
-        #self.logger.debug(f"Mask: {mask}")
-        #self.logger.debug(f"Actions: {ACTIONS}")
-        #self.logger.debug(f"Best actions: {best_actions}")
-        #selected_action = np.random.choice(best_actions)
-    
+        self.logger.debug(f"Q Values: {Q_values}")
+        max_Q = torch.max(Q_values[valid_actions_mask])
+        mask = np.array((Q_values == max_Q)) & valid_actions_mask
+        best_actions = ACTIONS[mask]
+        self.logger.debug(f"Mask: {mask}")
+        self.logger.debug(f"Actions: {ACTIONS}")
+        self.logger.debug(f"Best actions: {best_actions}")
+        selected_action = np.random.choice(best_actions)
+        
     self.logger.debug(f"Selected action: {selected_action}")
     
     return selected_action
