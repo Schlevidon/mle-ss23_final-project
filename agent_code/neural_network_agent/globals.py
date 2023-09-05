@@ -37,10 +37,10 @@ OPTIMIZER_PARAMS = {
 }
 CRITERION = torch.nn.MSELoss()
 
-BATCH_SIZE = 512 # 16
+BATCH_SIZE = 32 # 16
 
 # epsilon for epsilon-greedy policy
-EPS_START = 0.1
+EPS_START = 0.5
 EPS_END = 0.001
 EPS_DECAY = 0.999
 

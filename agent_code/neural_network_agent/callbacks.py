@@ -19,8 +19,8 @@ def setup(self):
     np.random.seed(RANDOM_SEED)
     
     self.PATH = "./model/my-model.pt" #'/'.join((MODEL_FOLDER,MODEL_NAME))
- 
-    self.MODEL_TYPE = m.QNetwork
+
+    self.MODEL_TYPE = m.OneCoinNet
     # Select model type here
     self.model = self.MODEL_TYPE(**self.MODEL_TYPE.get_architecture())
     
@@ -51,6 +51,8 @@ def setup(self):
     self.coordinate_history = deque([], 20)
     self.ignore_others_timer = 0
     self.current_round = 0
+
+    self.last_distance = 20
     
 
 

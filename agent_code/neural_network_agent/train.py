@@ -45,6 +45,15 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
+    # Distance to coin
+    current_distance = self.MODEL_TYPE.state_to_features(new_game_state)[-1]
+    if self.last_distance < current_distance:
+        events.append(e.DISTANCE_MAX)
+    if self.last_distance > current_distance:
+        events.append(e.DISTANCE_MIN)
+
+    self.last_distance = current_distance
+
 
     # Update total reward from round
     reward = reward_from_events(self, events)
@@ -120,13 +129,15 @@ def train(self):
 def reward_from_events(self, events: List[str]) -> int:
 
     game_rewards = {
-        e.COIN_COLLECTED: 100,
+        e.COIN_COLLECTED: 10,
         e.OPPONENT_ELIMINATED: 1000,
         e.ANY_ACTION : -1,
-        e.LOOP : -50,
+        #e.LOOP : -50,
         e.INVALID_ACTION : -5,
         e.BOMB_DROPPED : -10,
-        e.KILLED_SELF : -300
+        e.KILLED_SELF : -300,
+        e.DISTANCE_MIN : +1,
+        e.DISTANCE_MAX : -1
         #e.SURVIVED_ROUND : 100
     }
     
