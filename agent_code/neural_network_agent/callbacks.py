@@ -20,17 +20,20 @@ def setup(self):
     
     self.PATH = "./model/my-model.pt" #'/'.join((MODEL_FOLDER,MODEL_NAME))
 
-    self.MODEL_TYPE = m.OneCoinNet
+    self.MODEL_TYPE = m.OneCoinQTableWithPath
     # Select model type here
     self.model = self.MODEL_TYPE(**self.MODEL_TYPE.get_architecture())
-    
+    '''    
     if os.path.isfile(self.PATH):
         # TODO: Disable dropout and batch norm
         self.model.load_state_dict(torch.load(self.PATH, map_location = torch.device(DEVICE)))
     else:
         # TODO : should we move the model to device here?
         self.model.to(DEVICE)
-
+    '''
+    if os.path.isfile(self.PATH):
+        self.model.table = torch.load(self.PATH)
+    
     # Initialize eps
     self.eps = 0 # if not training eps should be 0
 
@@ -54,9 +57,6 @@ def setup(self):
 
     self.last_distance = 20
     
-
-
-
 def act(self, game_state: dict) -> str:
     if self.train and ALWAYS_RB:
         self.logger.debug(f"Forced to choose rule-based agent action.")
@@ -78,7 +78,7 @@ def act(self, game_state: dict) -> str:
         # Exploitation: act greedily wrt to Q-function
         self.logger.debug("Querying model for action (greedy)")
         with torch.no_grad():
-            Q_values = self.model(self.MODEL_TYPE.state_to_features(game_state))
+            Q_values = self.model(self.MODEL_TYPE.state_to_features(game_state,self))
             self.logger.debug(f"Q Values: {Q_values}")
 
         if STOCHASTIC_POLICY:

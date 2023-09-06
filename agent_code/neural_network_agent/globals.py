@@ -37,14 +37,17 @@ OPTIMIZER_PARAMS = {
 }
 CRITERION = torch.nn.MSELoss()
 
-BATCH_SIZE = 32 # 16
+BATCH_SIZE = 128 # 16
 
 # epsilon for epsilon-greedy policy
-EPS_START = 0.5
+EPS_START = 0
 EPS_END = 0.001
-EPS_DECAY = 0.999
+EPS_DECAY = 0.99
 
 # Reward discount factor
 GAMMA = 0.99
 
 AVERAGE_REWARD_WINDOW = 50
+
+# Q-Table
+LR = 1e-3

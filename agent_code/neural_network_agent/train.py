@@ -12,7 +12,7 @@ import numpy as np
 
 import events as e
 from .helper import plot
-from .globals import Transition, TRANSITION_HISTORY_SIZE, OPTIMIZER_PARAMS, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW
+from .globals import Transition, TRANSITION_HISTORY_SIZE, OPTIMIZER_PARAMS, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS
 
 def setup_training(self):
 
@@ -22,7 +22,7 @@ def setup_training(self):
 
     # TODO : load previous optimizer values
     # TODO : try different optimizers
-    self.optimizer = optim.Adam(self.model.parameters(), **OPTIMIZER_PARAMS)
+    #self.optimizer = optim.Adam(self.model.parameters(), **OPTIMIZER_PARAMS)
 
     # Initialize epsilon for training
     # TODO : load previous epsilon when resuming training?
@@ -45,14 +45,20 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
+    
+    """
     # Distance to coin
-    current_distance = self.MODEL_TYPE.state_to_features(new_game_state)[-1]
+    current_distance = self.MODEL_TYPE.state_to_features(new_game_state, self)[-1]
     if self.last_distance < current_distance:
         events.append(e.DISTANCE_MAX)
     if self.last_distance > current_distance:
         events.append(e.DISTANCE_MIN)
 
     self.last_distance = current_distance
+    """
+    # Reward ideal action
+    if self_action == ACTIONS[self.MODEL_TYPE.state_to_features(old_game_state, self)]:
+        events.append(e.IDEAL_ACTION)
 
 
     # Update total reward from round
@@ -60,18 +66,23 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.round_reward += reward
 
     # state_to_features is defined in model.py
-    self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(old_game_state),
+    self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(old_game_state, self),
                                         self_action, 
-                                        self.MODEL_TYPE.state_to_features(new_game_state), 
+                                        self.MODEL_TYPE.state_to_features(new_game_state, self), 
                                         reward,
                                         new_game_state))
     
     # Train on one random batch
     # TODO : implement importance sampling
+    """
     if len(self.transitions) < BATCH_SIZE:
         sample = self.transitions
     else:
         sample = random.sample(self.transitions, BATCH_SIZE)
+    """
+    
+
+    sample = self.transitions[-1]
     self.model.train_step(self, sample)
 
 
@@ -79,8 +90,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
-    size = self.MODEL_TYPE.state_to_features(last_game_state).shape
-    self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(last_game_state), 
+    size = self.MODEL_TYPE.state_to_features(last_game_state, self).shape
+    self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(last_game_state, self), 
                                        last_action, 
                                        torch.ones(size)*float('nan'), # TODO : find a better solution (this is memory inefficient and complicated)
                                        reward_from_events(self, events),
@@ -129,21 +140,23 @@ def train(self):
 def reward_from_events(self, events: List[str]) -> int:
 
     game_rewards = {
-        e.COIN_COLLECTED: 10,
-        e.OPPONENT_ELIMINATED: 1000,
-        e.ANY_ACTION : -1,
+        #e.COIN_COLLECTED: 10,
+        #e.OPPONENT_ELIMINATED: 1000,
+        #e.ANY_ACTION : -1,
         #e.LOOP : -50,
-        e.INVALID_ACTION : -5,
-        e.BOMB_DROPPED : -10,
-        e.KILLED_SELF : -300,
-        e.DISTANCE_MIN : +1,
-        e.DISTANCE_MAX : -1
-        #e.SURVIVED_ROUND : 100
-    }
+        #e.INVALID_ACTION : -5,
+        #e.BOMB_DROPPED : -10,
+        #e.KILLED_SELF : -300,
+        #e.DISTANCE_MIN : +1,
+        #e.DISTANCE_MAX : -1,
+        #e.SURVIVED_ROUND : 100,
+        e.IDEAL_ACTION : 1,
+        #e.CRATE_DESTROYED : 5,
+    } 
     
     reward_sum = 0
     for event in events:
         if event in game_rewards:
             reward_sum += game_rewards[event]
-    self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
+    self.logger.debug(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
