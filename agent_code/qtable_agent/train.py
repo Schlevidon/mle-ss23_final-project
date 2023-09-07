@@ -1,18 +1,17 @@
-from collections import namedtuple, deque
+from collections import deque
 from typing import List
 import pickle
 import random
 
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 import torch
-import torch.optim as optim
 
 import numpy as np
 
 import events as e
 from .helper import plot
-from .globals import Transition, TRANSITION_HISTORY_SIZE, OPTIMIZER_PARAMS, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS
+from .globals import Transition, TRANSITION_HISTORY_SIZE, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS
 
 def setup_training(self):
 
@@ -22,11 +21,11 @@ def setup_training(self):
 
     # TODO : load previous optimizer values
     # TODO : try different optimizers
-    self.optimizer = optim.Adam(self.model.parameters(), **OPTIMIZER_PARAMS)
 
     # Initialize epsilon for training
     # TODO : load previous epsilon when resuming training?
     self.eps = EPS_START
+
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
@@ -45,12 +44,26 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    
-    ''' 
-    #Reward ideal action
+    for event in events:
+        if event in self.event_counter:
+            self.event_counter[event] += 1
+        else:
+            self.event_counter[event] = 0
+    """
+    # Distance to coin
+    current_distance = self.MODEL_TYPE.state_to_features(new_game_state, self)[-1]
+    if self.last_distance < current_distance:
+        events.append(e.DISTANCE_MAX)
+    if self.last_distance > current_distance:
+        events.append(e.DISTANCE_MIN)
+
+    self.last_distance = current_distance
+    """
+
+    """# Reward ideal action
     if self_action == ACTIONS[self.MODEL_TYPE.state_to_features(old_game_state, self)]:
         events.append(e.IDEAL_ACTION)
-    '''
+    """
 
 
     # Update total reward from round
@@ -66,12 +79,15 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     
     # Train on one random batch
     # TODO : implement importance sampling
-
+    """
     if len(self.transitions) < BATCH_SIZE:
         sample = self.transitions
     else:
         sample = random.sample(self.transitions, BATCH_SIZE)
+    """
+    
 
+    sample = self.transitions[-1]
     self.model.train_step(self, sample)
 
 
@@ -97,7 +113,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         self.mean_round_reward_history.append(np.mean(self.round_reward_history)) 
     else:
         self.mean_round_reward_history.append(np.mean(self.round_reward_history[-AVERAGE_REWARD_WINDOW:])) 
-    plot(self.round_reward_history, self.mean_round_reward_history, self.eps_history)
+    
+    # Plotting the actual stats
+    plot(self.round_reward_history, self.mean_round_reward_history, self.eps_history, self.event_counter)
 
     # Reset metrics
     self.round_reward = 0
@@ -129,17 +147,17 @@ def train(self):
 def reward_from_events(self, events: List[str]) -> int:
 
     game_rewards = {
-        #e.COIN_COLLECTED: 10,
+        e.COIN_COLLECTED: 1000,
         #e.OPPONENT_ELIMINATED: 1000,
-        #e.ANY_ACTION : -1,
-        #e.LOOP : -50,
-        #e.INVALID_ACTION : -5,
+        e.ANY_ACTION : -1,
+        e.LOOP : -50,
+        e.INVALID_ACTION : -100,
         #e.BOMB_DROPPED : -10,
         #e.KILLED_SELF : -300,
         #e.DISTANCE_MIN : +1,
         #e.DISTANCE_MAX : -1,
         #e.SURVIVED_ROUND : 100,
-        e.IDEAL_ACTION : 1,
+        #e.IDEAL_ACTION : 1,
         #e.CRATE_DESTROYED : 5,
     } 
     

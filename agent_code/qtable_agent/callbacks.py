@@ -20,16 +20,19 @@ def setup(self):
     
     self.PATH = "./model/my-model.pt" #'/'.join((MODEL_FOLDER,MODEL_NAME))
 
-    self.MODEL_TYPE = m.OneCoinNet
+    self.MODEL_TYPE = m.QTable
     # Select model type here
     self.model = self.MODEL_TYPE(**self.MODEL_TYPE.get_architecture())
-    
+    '''    
     if os.path.isfile(self.PATH):
         # TODO: Disable dropout and batch norm
         self.model.load_state_dict(torch.load(self.PATH, map_location = torch.device(DEVICE)))
     else:
         # TODO : should we move the model to device here?
         self.model.to(DEVICE)
+    '''
+    if os.path.isfile(self.PATH):
+        self.model.table = torch.load(self.PATH)
     
     # Initialize eps
     self.eps = 0 # if not training eps should be 0
@@ -40,6 +43,8 @@ def setup(self):
 
     self.round_reward_history = []
     self.mean_round_reward_history = []
+    
+    self.event_counter = {}
 
     # TODO : save/display immediate rewards in each step
     self.step_reward_history = []
