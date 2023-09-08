@@ -153,12 +153,12 @@ def reward_from_events(self, events: List[str]) -> int:
         e.LOOP : -50,
         e.INVALID_ACTION : -100,
         #e.BOMB_DROPPED : -10,
-        #e.KILLED_SELF : -300,
+        e.KILLED_SELF : -300,
         #e.DISTANCE_MIN : +1,
         #e.DISTANCE_MAX : -1,
         #e.SURVIVED_ROUND : 100,
         #e.IDEAL_ACTION : 1,
-        #e.CRATE_DESTROYED : 5,
+        e.CRATE_DESTROYED :10,
     } 
     
     reward_sum = 0

@@ -31,8 +31,8 @@ SCENARIOS = {
         "COIN_COUNT": 200
     }
     ,
-    "one-coin": {
-        "CRATE_DENSITY": 0,
+    "crates": {
+        "CRATE_DENSITY": 0.1,
         "COIN_COUNT": 1
     }
     ,

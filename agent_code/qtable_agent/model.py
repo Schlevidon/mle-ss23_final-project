@@ -8,7 +8,7 @@ from scipy.spatial.distance import cdist
 
 import settings as s
 from .globals import GAMMA, ACTIONS_DICT, LR
-from .helper import get_valid_actions, find_ideal_path
+from .helper import get_valid_actions, find_ideal_path, get_blast_coords, get_safety_feature
 from . import callbacks_rb as crb
 
 # dummy state to determine feature dimension
@@ -145,9 +145,10 @@ class QTable:
     # Define architecture
     @staticmethod
     def get_architecture() -> dict:
-        return {"dimensions" : (3, 3, 3, 3,
-                                2, 2, 2, 2,
-                                6)}
+        return {"dimensions" : (4, 4, 4, 4, # 4 tile information
+                                2, 2, 2, 2, # nearest coin direction
+                                2, 2, 2, 2, 2, # safety direction
+                                6)} # actions
 
     def __init__(self, dimensions):
         self.table = torch.zeros(dimensions)
@@ -171,17 +172,30 @@ class QTable:
         ''' Dict keys: round, step, field, bombs, explosion_map, my_agent, others'''
         # [UP, RIGHT, DOWN, LEFT]
 
-        # Feature: immediate neighboring tile awareness
-        # 3^4 = 27 permutations
         my_x, my_y = game_state['self'][-1]
         field = game_state["field"]
+        explosion_map = game_state['explosion_map']
+        bombs = game_state["bombs"]
+
+        # Feature: Bomb safety 
+        # 2^5 = 32 permutations
+        safety_feature = get_safety_feature((my_x, my_y), field, explosion_map, bombs)
 
 
+        # Feature: immediate neighboring tile awareness
+        # 4^4 = 256 permutations
+        exploding_bombs = [bomb for bomb in bombs if bomb[1] == 0]
+        predicted_explosions = get_blast_coords(exploding_bombs, field)
+
+        field = field.copy()
+        field[explosion_map > 1] = 2
+        field[predicted_explosions] = 2
+        # TODO : look at field transposed????
         field_feature = torch.tensor([field[my_x, my_y-1], #UP
                                       field[my_x+1, my_y], #RIGHT
                                       field[my_x, my_y + 1], #DOWN
                                       field[my_x - 1,my_y]]) #LEFT
-        field_feature += 1 # shift from [-1, 0, 1] to [0, 1, 2]
+        field_feature += 1 # shift from [-1, 0, 1, 2] to [0, 1, 2, 3]
 
         # Feature: coin direction
         # 2^4 = 16 permutations
@@ -196,23 +210,10 @@ class QTable:
                                     int(my_y < c_y), # DOWN
                                     int(c_x < my_x)]) #LEFT
         else:
-            coin_feature = torch.tensor([0, 0, 0, 0])
+            coin_feature = torch.tensor([0, 0, 0, 0]) # No coins available
 
-        features = torch.cat([field_feature, coin_feature])
+        features = torch.cat([field_feature, coin_feature, safety_feature])
         return features
-
-
-        # Assume that only one coin exists
-        coin = game_state["coins"]
-
-
-        action = find_ideal_path(my_pos, coin, game_state["field"])
-        
-        #action = crb.act(agent, game_state)
-        action_num = ACTIONS_DICT[action]
-        features = [action_num]
-
-        return torch.tensor(features)
         
     def train_step(self, agent, transition):
         # TODO: how to send tensors to GPU if available
