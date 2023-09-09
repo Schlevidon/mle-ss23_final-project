@@ -183,14 +183,17 @@ class QTable:
 
 
         # Feature: immediate neighboring tile awareness
+        # 3^4 = 81 permutations
         # 4^4 = 256 permutations
+        # TODO: we can use get_valid_actions to reduce the parameter size to 2^4 for the exploding bombs
+        
         exploding_bombs = [bomb for bomb in bombs if bomb[1] == 0]
-        predicted_explosions = get_blast_coords(exploding_bombs, field)
+        predicted_explosions = tuple(np.array(get_blast_coords(exploding_bombs, field)).T)
 
         field = field.copy()
         field[explosion_map > 1] = 2
         field[predicted_explosions] = 2
-        # TODO : look at field transposed????
+        
         field_feature = torch.tensor([field[my_x, my_y-1], #UP
                                       field[my_x+1, my_y], #RIGHT
                                       field[my_x, my_y + 1], #DOWN

@@ -167,7 +167,7 @@ def get_blast_coords(bombs, arena):
         for bomb in bombs:
             #if bomb[1] > 0: continue 
             x, y = bomb[0]
-            blast_coords = [(x, y)]
+            blast_coords.append((x, y))
             for i in range(1, BOMB_POWER + 1):
                 if arena[x + i, y] == -1:
                     break
@@ -196,7 +196,6 @@ def get_safety_feature(pos_agent, field, explosion_map, bombs):
     field_feature = get_field_feature(pos_agent, field, new_explosion_map)
 
     output = torch.tensor([0, 0, 0, 0, 0])
-    print(field_feature)
     for i, direction in enumerate(field_feature):
         if direction != 1: continue#
         # i=0 UP, i=1 Right, i=2 DOWN, i=3 LEFT, i=4 WAIT
@@ -204,7 +203,7 @@ def get_safety_feature(pos_agent, field, explosion_map, bombs):
         new_pos = pos_update(pos_agent, i)
         # Update field (crates destroyed)
         # Update explosion map (old explosions removed, new explosions added)
-        output[i] = find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1)
+        output[i] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))
 
     return output#bool[UP, RIGHT, DOWN, LEFT, WAIT]
 
@@ -220,9 +219,8 @@ def find_safe_tile(pos_agent, field, explosion_map, bombs, depth):
         return True
 
     new_explosion_map, new_field, new_bombs = explosion_map_update(explosion_map, bombs, field)
-    
     field_feature = get_field_feature(pos_agent, field, new_explosion_map)
-
+    
     # TODO : Explore directions in greedy order?
     for i, direction in enumerate(field_feature):
         if direction != 1: continue
@@ -258,15 +256,16 @@ def explosion_map_update(explosion_map, bombs, field):
     exploding_bombs = [bomb for bomb in bombs if bomb[1] == 0]
 
     # Add new explosions from bombs
-    bombs_exploded = get_blast_coords(exploding_bombs, field)
+    bombs_exploded = tuple(np.array(get_blast_coords(exploding_bombs, field)).T)
     #for bomb in bombs_exploded:
     #    explosion_map[bomb] = 2
-    explosion_map[bombs_exploded] = 2
+    if len(bombs_exploded) > 0:
+        explosion_map[bombs_exploded] = 2
     active_explosions = explosion_map > 0 
 
     # Destroy crates
     field = field.copy() # Maybe not needed
-    field[active_explosions & (field == 1)] = 0
+    field[active_explosions & (field == 1)] = 0 # TODO: should be modified when other features included
 
     return explosion_map, field, remaining_bombs
 
@@ -276,12 +275,18 @@ def get_field_feature(my_pos, field, explosion_map):
 
     field = field.copy()
     field[explosion_map > 0] = 2
+    '''
+    field_feature = torch.tensor([field[my_y - 1, my_x], #UP # field[my_y -1 , my_x] 
+                                  field[my_y, my_x + 1], #RIGHT
+                                  field[my_y + 1, my_x], #DOWN
+                                  field[my_y, my_x - 1]]) #LEFT
+    '''
 
-    field_feature = torch.tensor([field[my_x-1, my_y], #UP 
-                                  field[my_x, my_y+1], #RIGHT
-                                  field[my_x+1, my_y], #DOWN
-                                  field[my_x, my_y-1], # LEFT 
-                                  field[my_x, my_y]])  # WAIT 
+    field_feature = torch.tensor([field[my_x, my_y - 1], #UP # field[my_y -1 , my_x] 
+                                field[my_x + 1, my_y], #RIGHT
+                                field[my_x, my_y + 1], #DOWN
+                                field[my_x - 1, my_y], #LEFT
+                                field[my_x, my_y]]) #WAIT
     field_feature += 1 # shift from [-1, 0, 1, 2] to [0, 1, 2,3]
 
     return field_feature
