@@ -80,7 +80,7 @@ def act(self, game_state: dict) -> str:
         # Exploitation: act greedily wrt to Q-function
         self.logger.debug("Querying model for action (greedy)")
         with torch.no_grad():
-            Q_values = self.model(self.MODEL_TYPE.state_to_features(game_state,self))
+            Q_values = self.model(self.MODEL_TYPE.state_to_features(game_state, self))
             self.logger.debug(f"Q Values: {Q_values}")
 
         if STOCHASTIC_POLICY:
@@ -90,7 +90,10 @@ def act(self, game_state: dict) -> str:
             selected_action = np.random.choice(ACTIONS[valid_actions_mask], p=probs)
         else:
             max_Q = torch.max(Q_values[valid_actions_mask])
-            mask = np.array((Q_values == max_Q)) & valid_actions_mask
+            self.logger.debug(f"Maximum Q-value {max_Q}")
+            mask = np.array((max_mask := np.isclose(Q_values, max_Q))) & valid_actions_mask
+            self.logger.debug(f"max mask: {max_mask}")
+            self.logger.debug(f"final mask: {mask}")
 
             best_actions = ACTIONS[mask]
             self.logger.debug(f"Best actions: {best_actions}")

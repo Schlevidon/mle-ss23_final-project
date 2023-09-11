@@ -145,13 +145,14 @@ class QTable:
     # Define architecture
     @staticmethod
     def get_architecture() -> dict:
-        return {"dimensions" : (4, 4, 4, 4, # 4 tile information
+        return {"dimensions" : (#4, 4, 4, 4, # 4 tile information
                                 2, 2, 2, 2, # nearest coin direction
+                                2, 2, 2, 2, 2, # nearest crate direction and distance
                                 2, 2, 2, 2, 2, # safety direction
                                 6)} # actions
 
     def __init__(self, dimensions):
-        self.table = torch.zeros(dimensions)
+        self.table = torch.zeros(dimensions, dtype=torch.float64)
         self.table_stats = torch.zeros(dimensions)
         # Init weights in a smarter way
         
@@ -181,8 +182,26 @@ class QTable:
         # 2^5 = 32 permutations
         safety_feature = get_safety_feature((my_x, my_y), field, explosion_map, bombs)
 
+        # Feature: crate direction
+        # 2^5 = 32 permutations
+        # TODO : how detailed should the distance to the crate be
+        crates = np.argwhere(field == 1)
+        if len(crates) > 0:
+            dist = np.squeeze(cdist([(my_x, my_y)], crates, metric="cityblock"))
+            min_dist = np.min(dist)
 
-        # Feature: immediate neighboring tile awareness
+            crate_targets = crates[dist == min_dist].reshape(-1, 2)
+            
+            crate_feature = torch.tensor([int(np.any(crate_targets[:, 1] < my_y)), # UP
+                                    int(np.any(my_x < crate_targets[:, 0])), # RIGHT
+                                    int(np.any(my_y < crate_targets[:, 1])), # DOWN
+                                    int(np.any(crate_targets[:, 0] < my_x)), # LEFT
+                                    int(min_dist == 1)]) # is the agent next to the crate?
+        else:
+            crate_feature = torch.tensor([0, 0, 0, 0, 0]) # No coins available
+
+        
+        """# Feature: immediate neighboring tile awareness
         # 3^4 = 81 permutations
         # 4^4 = 256 permutations
         # TODO: we can use get_valid_actions to reduce the parameter size to 2^4 for the exploding bombs
@@ -198,24 +217,34 @@ class QTable:
                                       field[my_x+1, my_y], #RIGHT
                                       field[my_x, my_y + 1], #DOWN
                                       field[my_x - 1,my_y]]) #LEFT
-        field_feature += 1 # shift from [-1, 0, 1, 2] to [0, 1, 2, 3]
+        field_feature += 1 # shift from [-1, 0, 1, 2] to [0, 1, 2, 3]"""
 
         # Feature: coin direction
+        # TODO : implement actual pathfinding for situations like below
+        #what about 010
+        #           0-10
+        #           0a0
         # 2^4 = 16 permutations
+        # TODO : if there are multiple coins with minimal distance currently
+        # only the first coin is returned. We should either return all directions
+        # or reduce features since UP/DOWN and LEFT/RIGHT are mutually exclusive
         if len(game_state["coins"]) > 0:
-            coins = game_state["coins"]
-            dist = cdist([(my_x, my_y)],coins, metric="cityblock")
-            coin_target = coins[np.argmin(dist)]
-            
-            c_x, c_y = coin_target
-            coin_feature = torch.tensor([int(c_y < my_y), # UP
-                                    int(my_x < c_x), # RIGHT
-                                    int(my_y < c_y), # DOWN
-                                    int(c_x < my_x)]) #LEFT
+            coins = np.array(game_state["coins"])
+            dist = np.squeeze(cdist([(my_x, my_y)], coins, metric="cityblock"))
+            min_dist = np.min(dist)
+
+            coin_targets = coins[dist == min_dist].reshape(-1, 2)
+            coin_feature = torch.tensor([int(np.any(coin_targets[:, 1] < my_y)), # UP
+                                    int(np.any(my_x < coin_targets[:, 0])), # RIGHT
+                                    int(np.any(my_y < coin_targets[:, 1])), # DOWN
+                                    int(np.any(coin_targets[:, 0] < my_x))]) #LEFT
         else:
             coin_feature = torch.tensor([0, 0, 0, 0]) # No coins available
 
-        features = torch.cat([field_feature, coin_feature, safety_feature])
+        features = torch.cat([#field_feature,
+                              coin_feature,
+                              crate_feature,
+                              safety_feature])
         return features
         
     def train_step(self, agent, transition):

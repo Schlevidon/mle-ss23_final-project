@@ -14,8 +14,12 @@ SCENARIOS = {
         "CRATE_DENSITY": 0, 
         "COIN_COUNT": 0 
     },	
-    "one": {
+    "one-coin": {
         "CRATE_DENSITY": 0, 
+        "COIN_COUNT": 1 
+    },
+    "one-crate": {
+        "CRATE_DENSITY": 1/177, 
         "COIN_COUNT": 1 
     },
     "coin-heaven": {

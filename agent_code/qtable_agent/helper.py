@@ -118,7 +118,7 @@ def get_valid_actions(game_state) -> np.array:
     wait = True
     bomb = game_state["self"][2]
     #bomb = False # disable bombs for now
-    return np.array([True, True, True, True, True, True])
+    #return np.array([True, True, True, True, True, True])
     return np.array([up, right, down, left, wait, bomb])
 
 def find_ideal_path(pos_agent, pos_coin, field=None, bombs=None, explosion_map=None):
@@ -193,7 +193,7 @@ def get_safety_feature(pos_agent, field, explosion_map, bombs):
     # Explore directions in greedy order?
     new_explosion_map, new_field, new_bombs = explosion_map_update(explosion_map, bombs, field)
     
-    field_feature = get_field_feature(pos_agent, field, new_explosion_map)
+    field_feature = get_field_feature(pos_agent, field, new_explosion_map, new_bombs)
 
     output = torch.tensor([0, 0, 0, 0, 0])
     for i, direction in enumerate(field_feature):
@@ -219,7 +219,7 @@ def find_safe_tile(pos_agent, field, explosion_map, bombs, depth):
         return True
 
     new_explosion_map, new_field, new_bombs = explosion_map_update(explosion_map, bombs, field)
-    field_feature = get_field_feature(pos_agent, field, new_explosion_map)
+    field_feature = get_field_feature(pos_agent, field, new_explosion_map, new_bombs)
     
     # TODO : Explore directions in greedy order?
     for i, direction in enumerate(field_feature):
@@ -269,12 +269,17 @@ def explosion_map_update(explosion_map, bombs, field):
 
     return explosion_map, field, remaining_bombs
 
-def get_field_feature(my_pos, field, explosion_map):
-    # TODO : predicted explosions is computed twice. It would be more efficient to reuse the computation from explosion_map_update
+def get_field_feature(my_pos, field, explosion_map, bombs):
     my_x, my_y = my_pos
 
     field = field.copy()
     field[explosion_map > 0] = 2
+
+    bombs = [bomb[0] for bomb in bombs]
+    # TODO : vectorize
+    for b in bombs:
+        field[b] = 3
+
     '''
     field_feature = torch.tensor([field[my_y - 1, my_x], #UP # field[my_y -1 , my_x] 
                                   field[my_y, my_x + 1], #RIGHT

@@ -33,9 +33,9 @@ Transition = namedtuple('Transition',
 BATCH_SIZE = 128 # 16
 
 # epsilon for epsilon-greedy policy
-EPS_START = 0
+EPS_START = 1
 EPS_END = 0.001
-EPS_DECAY = 0.99
+EPS_DECAY = 0.9999
 
 # Reward discount factor
 GAMMA = 0.99

@@ -147,18 +147,20 @@ def train(self):
 def reward_from_events(self, events: List[str]) -> int:
 
     game_rewards = {
-        e.COIN_COLLECTED: 1000,
+        e.COIN_COLLECTED: 100,
         #e.OPPONENT_ELIMINATED: 1000,
         e.ANY_ACTION : -1,
-        e.LOOP : -50,
-        e.INVALID_ACTION : -100,
+        #e.LOOP : -50,
+        #e.INVALID_ACTION : -100,
         #e.BOMB_DROPPED : -10,
-        e.KILLED_SELF : -300,
+        e.KILLED_SELF : -250,
+        e.GOT_KILLED : -500,
+        e.KILLED_OPPONENT : 500,
         #e.DISTANCE_MIN : +1,
         #e.DISTANCE_MAX : -1,
         #e.SURVIVED_ROUND : 100,
         #e.IDEAL_ACTION : 1,
-        e.CRATE_DESTROYED :10,
+        e.CRATE_DESTROYED : 1/3 * 100,
     } 
     
     reward_sum = 0
