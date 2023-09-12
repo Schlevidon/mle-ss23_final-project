@@ -10,8 +10,8 @@ import torch
 import numpy as np
 
 import events as e
-from .helper import plot
-from .globals import Transition, TRANSITION_HISTORY_SIZE, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS
+from .helper import plot, get_safety_feature
+from .globals import Transition, TRANSITION_HISTORY_SIZE, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS, ACTIONS_DICT
 
 def setup_training(self):
 
@@ -29,18 +29,9 @@ def setup_training(self):
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
-
-    # TODO : Remove for agent submission (or maybe not if train is never called)
-    events.append(e.ANY_ACTION)
-
-    # If agent has been in the same location two times recently, it's a loop
-    try:
-        agent_pos = new_game_state['self'][-1]
-        if self.coordinate_history.count(agent_pos) > 2:
-            events.append(e.LOOP)
-        self.coordinate_history.append(agent_pos)
-    except:
-        self.logger.debug(f'Position of agent not found: no new_game_state')
+   
+    new_events = get_new_events(self, old_game_state, self_action, new_game_state)
+    events.extend(new_events)
 
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
@@ -92,18 +83,35 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
+    # Define new events
+    new_events = get_new_events(self, last_game_state, last_action, None)
+    events.extend(new_events)
 
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
+
+    # Update event stats
+    for event in events:
+        if event in self.event_counter:
+            self.event_counter[event] += 1
+        else:
+            self.event_counter[event] = 0
+
+    # Update total reward from round
+    reward = reward_from_events(self, events)
+    self.round_reward += reward
 
     size = self.MODEL_TYPE.state_to_features(last_game_state, self).shape
     self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(last_game_state, self), 
                                        last_action, 
                                        torch.ones(size)*float('nan'), # TODO : find a better solution (this is memory inefficient and complicated)
-                                       reward_from_events(self, events),
+                                       reward,
                                        None))
 
     # TODO : Train the model for longer at the end of a round?
     #train(self)
+
+    sample = self.transitions[-1]
+    self.model.train_step(self, sample)
     
     # Plot metrics
     self.eps_history.append(self.eps)
@@ -143,6 +151,48 @@ def train(self):
         batch = list(transitions)[i:i + self.batch_size]
         train_step(self, batch)
 """
+def get_new_events(self, old_game_state: dict, self_action: str, new_game_state: dict = None):
+    # Define new events
+    # TODO : Remove for agent submission (or maybe not if train is never called)
+    events = []
+    events.append(e.ANY_ACTION)
+
+    # If agent has been in the same location two times recently, it's a loop
+    try:
+        agent_pos = new_game_state['self'][-1]
+        if self.coordinate_history.count(agent_pos) > 2:
+            events.append(e.LOOP)
+        self.coordinate_history.append(agent_pos)
+    except:
+        self.logger.debug(f'Position of agent not found: no new_game_state')
+
+    # TODO : think of a smarte way to do this
+    # Agent placed a bomb next to a crate
+    if self_action == "BOMB":
+        my_x, my_y = old_game_state["self"][-1]
+        adjacent_fields = [(my_x, my_y - 1), (my_x + 1, my_y), (my_x, my_y + 1), (my_x - 1, my_y)]
+        for coord in adjacent_fields:
+            if old_game_state["field"][coord] == 1:
+                events.append(e.BOMB_NEXT_TO_CRATE)
+                break
+
+    # Took an unsafe action
+    pos_agent = old_game_state["self"][-1]
+    field = old_game_state["field"]
+    explosion_map = old_game_state["explosion_map"]
+    bombs = old_game_state["bombs"]
+
+    """unsafe_actions = get_safety_feature(pos_agent, field, explosion_map, bombs)
+    a_idx = ACTIONS_DICT[self_action]
+    if unsafe_actions[a_idx] == 0:
+        e.append(e.UNSAFE_ACTION)
+    """
+    unsafe_actions = ACTIONS[:-1][~(get_safety_feature(pos_agent, field, explosion_map, bombs)).bool()]
+    if self_action in unsafe_actions and len(unsafe_actions) != 5:
+        events.append(e.UNSAFE_ACTION)
+
+    return events
+
 
 def reward_from_events(self, events: List[str]) -> int:
 
@@ -153,14 +203,16 @@ def reward_from_events(self, events: List[str]) -> int:
         #e.LOOP : -50,
         #e.INVALID_ACTION : -100,
         #e.BOMB_DROPPED : -10,
-        e.KILLED_SELF : -250,
-        e.GOT_KILLED : -500,
-        e.KILLED_OPPONENT : 500,
+        #e.KILLED_SELF : -250,
+        #e.GOT_KILLED : -500,
+        #e.KILLED_OPPONENT : 500,
         #e.DISTANCE_MIN : +1,
         #e.DISTANCE_MAX : -1,
         #e.SURVIVED_ROUND : 100,
         #e.IDEAL_ACTION : 1,
-        e.CRATE_DESTROYED : 1/3 * 100,
+        #e.CRATE_DESTROYED : 1/3 * 100,
+        e.BOMB_NEXT_TO_CRATE : 1/3 * 100,
+        e.UNSAFE_ACTION : -250,
     } 
     
     reward_sum = 0

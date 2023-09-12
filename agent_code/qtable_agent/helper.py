@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 from IPython import display
 
@@ -187,17 +188,18 @@ def get_blast_coords(bombs, arena):
 
         return blast_coords
 
+# TODO : include bomb action in safety feature
 def get_safety_feature(pos_agent, field, explosion_map, bombs):
     #[1,1,2,3] #0 wand; #1 frei; #2 crate; #3 expl
 
     # Explore directions in greedy order?
     new_explosion_map, new_field, new_bombs = explosion_map_update(explosion_map, bombs, field)
     
-    field_feature = get_field_feature(pos_agent, field, new_explosion_map, new_bombs)
+    field_feature = get_allowed_actions(pos_agent, field, explosion_map, new_explosion_map, new_bombs)
 
     output = torch.tensor([0, 0, 0, 0, 0])
     for i, direction in enumerate(field_feature):
-        if direction != 1: continue#
+        if not direction: continue
         # i=0 UP, i=1 Right, i=2 DOWN, i=3 LEFT, i=4 WAIT
         # Update agent position
         new_pos = pos_update(pos_agent, i)
@@ -218,18 +220,17 @@ def find_safe_tile(pos_agent, field, explosion_map, bombs, depth):
     if pos_agent not in danger_positions:
         return True
 
+    # Update field (crates destroyed)
+    # Update explosion map (old explosions removed, new explosions added)
     new_explosion_map, new_field, new_bombs = explosion_map_update(explosion_map, bombs, field)
-    field_feature = get_field_feature(pos_agent, field, new_explosion_map, new_bombs)
+    field_feature = get_allowed_actions(pos_agent, field, explosion_map, new_explosion_map, new_bombs)
     
     # TODO : Explore directions in greedy order?
     for i, direction in enumerate(field_feature):
-        if direction != 1: continue
-
-        # i=0 UP, i=1 Right, i=2 DOWN, i=3 LEFT, i=4 WAIT
+        if not direction: continue
         # Update agent position
         new_pos = pos_update(pos_agent, i)
-        # Update field (crates destroyed)
-        # Update explosion map (old explosions removed, new explosions added)
+
         if find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, depth + 1):
             return True
 
@@ -250,7 +251,7 @@ def pos_update(pos, index):
 def explosion_map_update(explosion_map, bombs, field):
     # Update existing explosions timer
     explosion_map = explosion_map - 1
-    explosion_map[explosion_map<0] = 0
+    explosion_map[explosion_map < 0] = 0
 
     remaining_bombs = [(bomb[0], bomb[1] - 1) for bomb in bombs if bomb[1] > 0]
     exploding_bombs = [bomb for bomb in bombs if bomb[1] == 0]
@@ -260,7 +261,7 @@ def explosion_map_update(explosion_map, bombs, field):
     #for bomb in bombs_exploded:
     #    explosion_map[bomb] = 2
     if len(bombs_exploded) > 0:
-        explosion_map[bombs_exploded] = 2
+        explosion_map[bombs_exploded] = 1
     active_explosions = explosion_map > 0 
 
     # Destroy crates
@@ -269,16 +270,16 @@ def explosion_map_update(explosion_map, bombs, field):
 
     return explosion_map, field, remaining_bombs
 
-def get_field_feature(my_pos, field, explosion_map, bombs):
+def get_allowed_actions(my_pos, field, old_explosion_map, new_explosion_map, bombs):
     my_x, my_y = my_pos
 
     field = field.copy()
-    field[explosion_map > 0] = 2
+    field[(old_explosion_map + new_explosion_map) > 0] = 5
 
     bombs = [bomb[0] for bomb in bombs]
     # TODO : vectorize
     for b in bombs:
-        field[b] = 3
+        field[b] = -1
 
     '''
     field_feature = torch.tensor([field[my_y - 1, my_x], #UP # field[my_y -1 , my_x] 
@@ -291,7 +292,6 @@ def get_field_feature(my_pos, field, explosion_map, bombs):
                                 field[my_x + 1, my_y], #RIGHT
                                 field[my_x, my_y + 1], #DOWN
                                 field[my_x - 1, my_y], #LEFT
-                                field[my_x, my_y]]) #WAIT
-    field_feature += 1 # shift from [-1, 0, 1, 2] to [0, 1, 2,3]
+                                field[my_x, my_y] == 5]) #WAIT (only forbidden if explosion)
 
-    return field_feature
+    return (field_feature == 0)
