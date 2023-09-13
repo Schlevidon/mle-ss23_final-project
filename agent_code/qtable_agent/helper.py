@@ -162,6 +162,67 @@ def find_ideal_path(pos_agent, pos_coin, field=None, bombs=None, explosion_map=N
         move = 'LEFT'
     return move
 
+
+def get_coin_feature(my_pos, other_pos, pos_targets, field):
+    coin_paths = []
+
+    # Calculate paths from out position to all targets
+    for t in pos_targets:
+        path = find_path_to_target(my_pos, t, field)
+        if len(path) > 0:
+            coin_paths.append([find_path_to_target(my_pos, t, field), t])
+
+    # Sort by shortest path
+    coin_paths = sorted(coin_paths, key=lambda c : len(c[0]))
+    
+    # Check if other agents can reach the coin earlier
+    found_path = None
+    for p in coin_paths:
+        path, coin_pos = p
+        for pos in other_pos:
+            other_path = find_path_to_target(pos, coin_pos, field)
+            if len(path) <= len(other_path):
+                found_path = path
+                break
+    
+    # We have a coin that we can reach first
+    if found_path is not None: # [(my_x, my_y), (my_x + 1, my_y), ...]
+        first_step = found_path[1]
+        my_x, my_y = my_pos
+        if first_step.y < my_y:
+            return "UP"
+        if first_step.y > my_y:
+            return "DOWN"
+        if first_step.x < my_x:
+            return "LEFT"
+        if first_step.x > my_x:
+            return "RIGHT"
+    
+    return None # No available path found
+
+
+
+# TODO : For now bombs, explosions or other agent are not considered in path finding.
+def find_path_to_target(my_pos, pos_target, field):
+    field = field.copy()
+    field[field == 1] = -1 # Crates are treated as walls
+    field[field == 0] = 1 # Taking a step on a free tile has cost one
+    
+    grid = Grid(matrix=field.T) # Transpose field so that the output direction matches the GUI
+    finder = AStarFinder()
+
+    sx, sy = my_pos
+    start = grid.node(sx, sy)
+
+    tx, ty = pos_target
+    end = grid.node(tx, ty)
+
+    path, runs = finder.find_path(start, end, grid)
+    grid.cleanup()
+
+    return path # len(path) = 0 iff no path can be found
+
+    
 def get_blast_coords(bombs, arena):
         power = 3
         blast_coords = []

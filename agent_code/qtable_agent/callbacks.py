@@ -60,13 +60,13 @@ def setup(self):
     self.last_distance = 20
     
 def act(self, game_state: dict) -> str:
-    state_feature = self.MODEL_TYPE.state_to_features(game_state, self).flatten().bool()
+    """state_feature = self.MODEL_TYPE.state_to_features(game_state, self).flatten().bool()
     explosion_map = game_state["explosion_map"]
     self.logger.debug("Computing state features...")
     self.logger.debug(f"Coin direction: {ACTIONS[:4][state_feature[:4]]}")
     self.logger.debug(f"Crate direction: {ACTIONS[:4][state_feature[4:8]]}")
     self.logger.debug(f"Agent next to crate: {state_feature[8]}")
-    self.logger.debug(f"Safety direction: {ACTIONS[:5][state_feature[9:14].bool()]}")
+    self.logger.debug(f"Safety direction: {ACTIONS[:5][state_feature[9:14].bool()]}")"""
 
     if self.train and ALWAYS_RB:
         self.logger.debug(f"Forced to choose rule-based agent action.")

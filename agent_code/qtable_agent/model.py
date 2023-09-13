@@ -8,7 +8,7 @@ from scipy.spatial.distance import cdist
 
 import settings as s
 from .globals import GAMMA, ACTIONS_DICT, LR
-from .helper import get_valid_actions, find_ideal_path, get_blast_coords, get_safety_feature
+from .helper import get_valid_actions, find_ideal_path, get_blast_coords, get_safety_feature, get_coin_feature
 from . import callbacks_rb as crb
 
 # dummy state to determine feature dimension
@@ -145,11 +145,16 @@ class QTable:
     # Define architecture
     @staticmethod
     def get_architecture() -> dict:
-        return {"dimensions" : (#4, 4, 4, 4, # 4 tile information
+        return {"dimensions" : (5, # coin or crate feature
+                                2, 2, 2, 2, 2, # safety feature
+                                2, # agent next to crate
+                                6)} # actions
+
+        """return {"dimensions" : (#4, 4, 4, 4, # 4 tile information
                                 2, 2, 2, 2, # nearest coin direction
                                 2, 2, 2, 2, 2, # nearest crate direction and distance
                                 2, 2, 2, 2, 2, # safety direction
-                                6)} # actions
+                                6)} # actions"""
 
     def __init__(self, dimensions):
         self.table = torch.zeros(dimensions, dtype=torch.float64)
@@ -173,34 +178,85 @@ class QTable:
         ''' Dict keys: round, step, field, bombs, explosion_map, my_agent, others'''
         # [UP, RIGHT, DOWN, LEFT]
 
-        my_x, my_y = game_state['self'][-1]
+        my_x, my_y = my_pos = game_state['self'][-1]
+
+        other_agents = game_state["others"]
+        other_pos = [agent[-1] for agent in other_agents]
+
         field = game_state["field"]
+
         explosion_map = game_state['explosion_map']
         bombs = game_state["bombs"]
+        coins = game_state["coins"]
+
+        # Feature: Object of interest direction
+        # Coin if available else crate
+        #obj_type = get_targeted_object_type(game_state) # 0 = coin, 1 = crate, 2 = enemy
+        #dist_to_coin = get_coin_path() # 0 = UP, 1 = RIGHT, 2 = DOWN, 3 = LEFT
+        coin_or_crate_feature = 5 # if no crate or coin
+
+        coin_direction = get_coin_feature(my_pos, other_pos, coins, field)
+        if coin_direction is not None: # coin
+            coin_or_crate_feature = ACTIONS_DICT[coin_direction]
+
+            # Purely based on distance
+            """coins = np.array(game_state["coins"])
+            dist = np.squeeze(cdist([(my_x, my_y)], coins, metric="cityblock"))
+            min_dist = np.min(dist)
+
+            coin_targets = coins[dist == min_dist].reshape(-1, 2)
+            coin_feature = torch.tensor([int(np.any(coin_targets[:, 1] < my_y)), # UP
+                                    int(np.any(my_x < coin_targets[:, 0])), # RIGHT
+                                    int(np.any(my_y < coin_targets[:, 1])), # DOWN
+                                    int(np.any(coin_targets[:, 0] < my_x))]) #LEFT"""
+        else: # crate
+            # TODO : how detailed should the distance to the crate be
+            crates = np.argwhere(field == 1)
+            if len(crates) > 0:
+                dist = np.squeeze(cdist([(my_x, my_y)], crates, metric="cityblock"))
+                min_dist = np.min(dist)
+
+                crate_targets = crates[dist == min_dist].reshape(-1, 2)
+
+                # TODO : Select which crate to target if there are multiple with minimal distance
+                # For now take the first crate in the list
+                selected_crate = crate_targets[0]
+                
+                # TODO : if the crate is diagonal which direction should be chosen?
+                # For now the x coordinate is preferred
+                if selected_crate[1] < my_y:
+                    crate_direction = "UP"
+                if selected_crate[1] > my_y:
+                    crate_direction = "DOWN"
+                if selected_crate[0] < my_x:
+                    crate_direction = "LEFT"
+                if selected_crate[0] > my_x:
+                    crate_direction = "RIGHT"
+
+                coin_or_crate_feature = ACTIONS_DICT[crate_direction]
+                
+                """crate_feature = torch.tensor([int(np.any(crate_targets[:, 1] < my_y)), # UP
+                                        int(np.any(my_x < crate_targets[:, 0])), # RIGHT
+                                        int(np.any(my_y < crate_targets[:, 1])), # DOWN
+                                        int(np.any(crate_targets[:, 0] < my_x)), # LEFT
+                                        #int(min_dist == 1), # is the agent next to the crate?
+                                        ])"""
+        # Reshape scalar to match other feature
+        coin_or_crate_feature = torch.tensor(coin_or_crate_feature).view(1)
+        
+        # TODO : feature for direction of enemy agent
+        """# enemy agent
+            raise NotImplemented("Add feature for enemy direction!")
+        else:
+            raise ValueError(f"Target object type {obj_type} does not exist.")"""
+            
+
 
         # Feature: Bomb safety 
         # 2^5 = 32 permutations
+        # TODO : add bomb action
         safety_feature = get_safety_feature((my_x, my_y), field, explosion_map, bombs)
 
-        # Feature: crate direction
-        # 2^5 = 32 permutations
-        # TODO : how detailed should the distance to the crate be
-        crates = np.argwhere(field == 1)
-        if len(crates) > 0:
-            dist = np.squeeze(cdist([(my_x, my_y)], crates, metric="cityblock"))
-            min_dist = np.min(dist)
-
-            crate_targets = crates[dist == min_dist].reshape(-1, 2)
-            
-            crate_feature = torch.tensor([int(np.any(crate_targets[:, 1] < my_y)), # UP
-                                    int(np.any(my_x < crate_targets[:, 0])), # RIGHT
-                                    int(np.any(my_y < crate_targets[:, 1])), # DOWN
-                                    int(np.any(crate_targets[:, 0] < my_x)), # LEFT
-                                    int(min_dist == 1)]) # is the agent next to the crate?
-        else:
-            crate_feature = torch.tensor([0, 0, 0, 0, 0]) # No coins available
-
-        
         """# Feature: immediate neighboring tile awareness
         # 3^4 = 81 permutations
         # 4^4 = 256 permutations
@@ -219,6 +275,19 @@ class QTable:
                                       field[my_x - 1,my_y]]) #LEFT
         field_feature += 1 # shift from [-1, 0, 1, 2] to [0, 1, 2, 3]"""
 
+        # Bomb attack feature
+
+        # Check if agent next to a crate
+        adjacent_fields = [(my_x, my_y - 1), (my_x, my_y + 1), (my_x - 1, my_y), (my_x + 1, my_y)]
+
+        agent_next_to_crate = 0
+        for coords in adjacent_fields:
+            if field[coords] == 1:
+                agent_next_to_crate = 1
+                break
+
+        bomb_atack_feature = torch.tensor([agent_next_to_crate])
+
         # Feature: coin direction
         # TODO : implement actual pathfinding for situations like below
         #what about 010
@@ -228,23 +297,12 @@ class QTable:
         # TODO : if there are multiple coins with minimal distance currently
         # only the first coin is returned. We should either return all directions
         # or reduce features since UP/DOWN and LEFT/RIGHT are mutually exclusive
-        if len(game_state["coins"]) > 0:
-            coins = np.array(game_state["coins"])
-            dist = np.squeeze(cdist([(my_x, my_y)], coins, metric="cityblock"))
-            min_dist = np.min(dist)
-
-            coin_targets = coins[dist == min_dist].reshape(-1, 2)
-            coin_feature = torch.tensor([int(np.any(coin_targets[:, 1] < my_y)), # UP
-                                    int(np.any(my_x < coin_targets[:, 0])), # RIGHT
-                                    int(np.any(my_y < coin_targets[:, 1])), # DOWN
-                                    int(np.any(coin_targets[:, 0] < my_x))]) #LEFT
-        else:
-            coin_feature = torch.tensor([0, 0, 0, 0]) # No coins available
+        
 
         features = torch.cat([#field_feature,
-                              coin_feature,
-                              crate_feature,
-                              safety_feature])
+                              coin_or_crate_feature,
+                              safety_feature,
+                              bomb_atack_feature])
         return features
         
     def train_step(self, agent, transition):
