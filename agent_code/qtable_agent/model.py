@@ -8,7 +8,8 @@ from scipy.spatial.distance import cdist
 
 import settings as s
 from .globals import GAMMA, ACTIONS_DICT, LR
-from .helper import get_valid_actions, find_ideal_path, get_blast_coords, get_safety_feature, get_coin_feature
+from .helper import get_valid_actions
+from .features import find_ideal_path, get_blast_coords, get_safety_feature, get_coin_feature, get_enemy_agent_feature, enemy_in_blast_coords
 from . import callbacks_rb as crb
 
 # dummy state to determine feature dimension
@@ -23,10 +24,6 @@ DUMMY_STATE = {"round" : 0,
                "user_input" : None
 }
 
-# __call__ -> Q_values form table
-# train_step -> Update Q-table
-# __init__ -> load Q-table or create new
-# agent_x, agent_y, coin_x, coin_y
 class OneCoinQTable:
     # Define architecture
     @staticmethod
@@ -146,8 +143,9 @@ class QTable:
     @staticmethod
     def get_architecture() -> dict:
         return {"dimensions" : (5, # coin or crate feature
-                                2, 2, 2, 2, 2, # safety feature
-                                2, # agent next to crate
+                                5, # enemy direction feature
+                                2, 2, 2, 2, 2, 2, # safety feature
+                                2, 2, # bomb atack feature (agent next to crate, enemy in blast coords)
                                 6)} # actions
 
         """return {"dimensions" : (#4, 4, 4, 4, # 4 tile information
@@ -177,8 +175,9 @@ class QTable:
     def state_to_features(game_state: dict, agent=None) -> torch.tensor:
         ''' Dict keys: round, step, field, bombs, explosion_map, my_agent, others'''
         # [UP, RIGHT, DOWN, LEFT]
-
-        my_x, my_y = my_pos = game_state['self'][-1]
+        my_agent = game_state["self"]
+        my_x, my_y = my_pos = my_agent[-1]
+        bomb_avail = my_agent[2]
 
         other_agents = game_state["others"]
         other_pos = [agent[-1] for agent in other_agents]
@@ -191,9 +190,8 @@ class QTable:
 
         # Feature: Object of interest direction
         # Coin if available else crate
-        #obj_type = get_targeted_object_type(game_state) # 0 = coin, 1 = crate, 2 = enemy
-        #dist_to_coin = get_coin_path() # 0 = UP, 1 = RIGHT, 2 = DOWN, 3 = LEFT
-        coin_or_crate_feature = 5 # if no crate or coin
+
+        coin_or_crate_feature = 4 # if no crate or coin
 
         coin_direction = get_coin_feature(my_pos, other_pos, coins, field)
         if coin_direction is not None: # coin
@@ -210,7 +208,6 @@ class QTable:
                                     int(np.any(my_y < coin_targets[:, 1])), # DOWN
                                     int(np.any(coin_targets[:, 0] < my_x))]) #LEFT"""
         else: # crate
-            # TODO : how detailed should the distance to the crate be
             crates = np.argwhere(field == 1)
             if len(crates) > 0:
                 dist = np.squeeze(cdist([(my_x, my_y)], crates, metric="cityblock"))
@@ -244,36 +241,18 @@ class QTable:
         # Reshape scalar to match other feature
         coin_or_crate_feature = torch.tensor(coin_or_crate_feature).view(1)
         
-        # TODO : feature for direction of enemy agent
-        """# enemy agent
-            raise NotImplemented("Add feature for enemy direction!")
-        else:
-            raise ValueError(f"Target object type {obj_type} does not exist.")"""
-            
+        # Feature for direction of enemy agent
+        enemy_direction = get_enemy_agent_feature(my_pos, other_pos, field)
+        enemy_feature = 4 # no enemy agents
 
+        if enemy_direction is not None:
+            enemy_feature = ACTIONS_DICT[enemy_direction]
+
+        enemy_feature = torch.tensor(enemy_feature).view(1)
 
         # Feature: Bomb safety 
-        # 2^5 = 32 permutations
-        # TODO : add bomb action
-        safety_feature = get_safety_feature((my_x, my_y), field, explosion_map, bombs)
-
-        """# Feature: immediate neighboring tile awareness
-        # 3^4 = 81 permutations
-        # 4^4 = 256 permutations
-        # TODO: we can use get_valid_actions to reduce the parameter size to 2^4 for the exploding bombs
-        
-        exploding_bombs = [bomb for bomb in bombs if bomb[1] == 0]
-        predicted_explosions = tuple(np.array(get_blast_coords(exploding_bombs, field)).T)
-
-        field = field.copy()
-        field[explosion_map > 1] = 2
-        field[predicted_explosions] = 2
-        
-        field_feature = torch.tensor([field[my_x, my_y-1], #UP
-                                      field[my_x+1, my_y], #RIGHT
-                                      field[my_x, my_y + 1], #DOWN
-                                      field[my_x - 1,my_y]]) #LEFT
-        field_feature += 1 # shift from [-1, 0, 1, 2] to [0, 1, 2, 3]"""
+        # 2^6 = 64 permutations
+        safety_feature = get_safety_feature((my_x, my_y), field, explosion_map, bombs, bomb_avail)
 
         # Bomb attack feature
 
@@ -286,23 +265,19 @@ class QTable:
                 agent_next_to_crate = 1
                 break
 
-        bomb_atack_feature = torch.tensor([agent_next_to_crate])
+        # Check if enemy in blast radius
+        enemy_in_blast_coords_feature = int(enemy_in_blast_coords(my_pos, other_pos, field))
 
-        # Feature: coin direction
-        # TODO : implement actual pathfinding for situations like below
-        #what about 010
-        #           0-10
-        #           0a0
-        # 2^4 = 16 permutations
-        # TODO : if there are multiple coins with minimal distance currently
-        # only the first coin is returned. We should either return all directions
-        # or reduce features since UP/DOWN and LEFT/RIGHT are mutually exclusive
-        
+        # TODO : add another more sophisticated attack feature?
 
-        features = torch.cat([#field_feature,
+        bomb_atack_feature = torch.tensor([agent_next_to_crate, enemy_in_blast_coords_feature])
+
+        features = torch.cat([
                               coin_or_crate_feature,
+                              enemy_feature,
                               safety_feature,
-                              bomb_atack_feature])
+                              bomb_atack_feature
+                              ])
         return features
         
     def train_step(self, agent, transition):
@@ -325,58 +300,3 @@ class QTable:
         
         self.table[tuple(old_state)][a_idx] = Q_old + LR * target
         self.table_stats[tuple(old_state)][a_idx] += 1
-
-# CNN State to feature
-def state_to_features2(game_state: dict) -> np.array:
-    '''    round = game_state['round']
-        step = game_state['step']
-        field = game_state['field']
-        bombs = game_state['bombs']
-        explosion_map = game_state['explosion_map']
-        coins = game_state['coins']
-        my_agent = game_state['self']
-        others = game_state['others']'''
-    # This is the dict before the game begins and after it ends
-    if game_state is None:
-        return None
-
-    # For example, you could construct several channels of equal shape, ...
-    channels = []
-    # Field
-    field = game_state['field']
-    fshape = field.shape
-    channels.append(field)
-    # Coins
-    coin_list = game_state['coins']
-    coins = np.zeros(fshape)
-    for coin in coin_list:
-        coins[coin] = 1
-    channels.append(coins)
-    # Agents
-    my_pos = game_state['self'][-1]
-    agent_list = game_state['others']
-    agents = np.zeros(fshape)
-    agents[my_pos] = -1
-    for agent in agent_list:
-        agents[agent[-1]] = 1
-    channels.append(agents)
-    # Bombs possible
-    bombs_possible = np.zeros(fshape)
-    bombs_possible[my_pos] = int(game_state['self'][2])
-    for agent in agent_list:
-        bombs_possible[agent[-1]] = int(agent[2])
-    channels.append(bombs_possible)
-    # Bombs
-    bomb_list = game_state['bombs']
-    bombs = np.zeros(fshape)
-    for bomb in bomb_list:
-        bombs[bomb[0]] = bomb[1] + 1
-    channels.append(bombs)
-    # Explosions
-    explosion_map = game_state['explosion_map']
-    channels.append(explosion_map)
-    
-    # concatenate them as a feature tensor (they must have the same shape), ...
-    stacked_channels = np.stack(channels)
-    #return output
-    return torch.as_tensor(stacked_channels, dtype=torch.float32)

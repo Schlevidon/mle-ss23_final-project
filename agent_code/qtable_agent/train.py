@@ -10,7 +10,8 @@ import torch
 import numpy as np
 
 import events as e
-from .helper import plot, get_safety_feature
+from .helper import plot
+from .features import get_safety_feature
 from .globals import Transition, TRANSITION_HISTORY_SIZE, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS, ACTIONS_DICT
 
 def setup_training(self):
@@ -187,7 +188,7 @@ def get_new_events(self, old_game_state: dict, self_action: str, new_game_state:
     if unsafe_actions[a_idx] == 0:
         e.append(e.UNSAFE_ACTION)
     """
-    unsafe_actions = ACTIONS[:-1][~(get_safety_feature(pos_agent, field, explosion_map, bombs)).bool()]
+    unsafe_actions = ACTIONS[~(get_safety_feature(pos_agent, field, explosion_map, bombs)).bool()]
     if self_action in unsafe_actions and len(unsafe_actions) != 5:
         events.append(e.UNSAFE_ACTION)
 

@@ -68,6 +68,11 @@ def act(self, game_state: dict) -> str:
     self.logger.debug(f"Agent next to crate: {state_feature[8]}")
     self.logger.debug(f"Safety direction: {ACTIONS[:5][state_feature[9:14].bool()]}")"""
 
+    """state_feature = self.MODEL_TYPE.state_to_features(game_state, self).flatten()
+    self.logger.debug(f"Coin or crate direction: {ACTIONS[:5][state_feature[0]]}")
+    self.logger.debug(f"Safety direction: {ACTIONS[:5][state_feature[1:6].bool()]}")
+    self.logger.debug(f"Agent next to crate: {bool(state_feature[6])}")"""
+
     if self.train and ALWAYS_RB:
         self.logger.debug(f"Forced to choose rule-based agent action.")
         return crb.act(self, game_state)
@@ -89,7 +94,7 @@ def act(self, game_state: dict) -> str:
         self.logger.debug("Querying model for action (greedy)")
         with torch.no_grad():
             Q_values = self.model(self.MODEL_TYPE.state_to_features(game_state, self))
-            self.logger.debug(f"Q Values: {Q_values}")
+            self.logger.debug(f"Q Values (rounded): {[(a, round(float(Q), 5)) for a, Q in zip(ACTIONS, Q_values)]}")
 
         if STOCHASTIC_POLICY:
             probs = np.array(softmax(Q_values[valid_actions_mask], dim=0))
@@ -99,9 +104,9 @@ def act(self, game_state: dict) -> str:
         else:
             max_Q = torch.max(Q_values[valid_actions_mask])
             self.logger.debug(f"Maximum Q-value {max_Q}")
-            mask = np.array((max_mask := np.isclose(Q_values, max_Q))) & valid_actions_mask
-            self.logger.debug(f"max mask: {max_mask}")
-            self.logger.debug(f"final mask: {mask}")
+            mask = np.isclose(Q_values, max_Q) & valid_actions_mask
+            #self.logger.debug(f"max mask: {max_mask}")
+            #self.logger.debug(f"final mask: {mask}")
 
             best_actions = ACTIONS[mask]
             self.logger.debug(f"Best actions: {best_actions}")
