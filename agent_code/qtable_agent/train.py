@@ -10,7 +10,7 @@ import torch
 import numpy as np
 
 import events as e
-from .features import get_safety_feature
+from .features import get_safety_feature, enemy_in_blast_coords
 from .globals import Transition, TRANSITION_HISTORY_SIZE, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS, ACTIONS_DICT
 
 def setup_training(self):
@@ -129,6 +129,17 @@ def get_new_events(self, old_game_state: dict, self_action: str, new_game_state:
                 events.append(e.BOMB_NEXT_TO_CRATE)
                 break
 
+    # Placed a bomb near an enemy
+    my_pos = old_game_state["self"][-1]
+    other_agents = old_game_state["others"]
+    other_pos = [agent[-1] for agent in other_agents]
+
+    field = old_game_state["field"]
+    
+    if enemy_in_blast_coords(my_pos, other_pos, field):
+        events.append(e.BOMB_NEAR_ENEMY)
+
+
     # Took an unsafe action
     pos_agent = old_game_state["self"][-1]
     field = old_game_state["field"]
@@ -137,7 +148,7 @@ def get_new_events(self, old_game_state: dict, self_action: str, new_game_state:
 
     """unsafe_actions = get_safety_feature(pos_agent, field, explosion_map, bombs)
     a_idx = ACTIONS_DICT[self_action]
-    if unsafe_actions[a_idx] == 0:
+    if unsafe_actions[a_idNSAFEx] == 0:
         e.append(e.UNSAFE_ACTION)
     """
     unsafe_actions = ACTIONS[~(get_safety_feature(pos_agent, field, explosion_map, bombs)).bool()]
@@ -165,6 +176,7 @@ def reward_from_events(self, events: List[str]) -> int:
         #e.IDEAL_ACTION : 1,
         #e.CRATE_DESTROYED : 1/3 * 100,
         e.BOMB_NEXT_TO_CRATE : 1/3 * 100,
+        e.BOMB_NEAR_ENEMY : 1/10 * 500,
         e.UNSAFE_ACTION : -250,
     } 
     
