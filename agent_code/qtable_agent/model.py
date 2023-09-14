@@ -156,8 +156,7 @@ class QTable:
 
     def __init__(self, dimensions):
         self.table = torch.zeros(dimensions, dtype=torch.float64)
-        self.table_stats = torch.zeros(dimensions)
-        # Init weights in a smarter way
+        # TODO : Init weights in a smarter way
         
     def __call__(self, feature):
         # feature = agent_x, agent_y, coin_x, coin_y
@@ -169,7 +168,6 @@ class QTable:
 
         file_name = os.path.join(folder_path, file_name)
         torch.save(self.table, file_name)
-        torch.save(self.table_stats, file_name.replace('.pt','_stats.pt'))
 
     @staticmethod
     def state_to_features(game_state: dict, agent=None) -> torch.tensor:
@@ -299,4 +297,3 @@ class QTable:
         
         
         self.table[tuple(old_state)][a_idx] = Q_old + LR * target
-        self.table_stats[tuple(old_state)][a_idx] += 1

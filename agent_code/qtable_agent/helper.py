@@ -3,14 +3,21 @@ import matplotlib.pyplot as plt
 from IPython import display
 
 import numpy as np
+import torch
 
 from typing import List
 import pickle
+from datetime import datetime
+from pathlib import Path
 
-#from .train import reward_from_events
+ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB'])
+ACTIONS_DICT = {action : idx for idx, action in enumerate(ACTIONS)}
 
 class Stats:
-    def __init__(self):
+    def __init__(self, table_shape=None):
+        self.dir = Path("stats") 
+        self.file = Path(datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f") + ".pkl")
+
         # Hyperparameters
         self.EPS_START = 0
         self.EPS_END = 0
@@ -31,7 +38,10 @@ class Stats:
         self.round_length_history = []
 
         # Number of times a table entry was visited
-        self.table_exploration = []
+        if table_shape is None:
+            self.table_exploration = []
+        else:
+            self.table_exploration = torch.zeros(table_shape)
 
         # Number of times events occured
         self.event_counter = {}
@@ -39,7 +49,12 @@ class Stats:
         # Last eps
         self.last_eps = 0
 
-    def save(self, path):
+    def save(self, path=None):
+        self.dir.mkdir(parents=True, exist_ok=True)
+
+        if path is None:
+            path = self.dir / self.file
+        
         with open(path, "wb") as file:
             pickle.dump(self, file)
 
@@ -47,9 +62,9 @@ class Stats:
         with open(path, "rb") as file:
             self = pickle.load(file)
 
-    def update_step(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str], agent=None):
+    def update_step(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str], reward, state_feature=None, agent=None):
         # Round rewards
-        self.round_reward += reward_from_events(self, events)
+        self.round_reward += reward
 
         # Update event stats
         for event in events:
@@ -58,13 +73,17 @@ class Stats:
             else:
                 self.event_counter[event] = 0
 
+        # Update exploration stats
+        a_idx = ACTIONS_DICT[self_action]
+        self.table_exploration[tuple(state_feature)][a_idx] += 1
+
         # Eps decay
         self.last_eps = agent.eps
     
-    def update_end_of_round(self, last_game_state: dict, last_action: str, events: List[str], agent=None):
+    def update_end_of_round(self, last_game_state: dict, last_action: str, events: List[str], reward, state_feature=None, agent=None):
         # Round rewards
-        self.round_reward += reward_from_events(self, events)
-        self.round_reward_history.append(round_reward)
+        self.round_reward += reward
+        self.round_reward_history.append(self.round_reward)
         self.round_reward = 0 # reset for next round
 
         # Update event stats
@@ -73,6 +92,10 @@ class Stats:
                 self.event_counter[event] += 1
             else:
                 self.event_counter[event] = 0
+
+        # Update exploration stats
+        a_idx = ACTIONS_DICT[last_action]
+        self.table_exploration[tuple(state_feature)][a_idx] += 1
 
         # Length of episode
         self.round_length_history.append(last_game_state["step"])

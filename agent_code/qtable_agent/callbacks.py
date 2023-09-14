@@ -10,7 +10,7 @@ from collections import deque
 
 from . import model as m
 from . import callbacks_rb as crb
-from .helper import get_valid_actions
+from .helper import get_valid_actions, Stats
 from .globals import RANDOM_SEED, DEVICE, ALWAYS_RB, SAMPLE_RB, ACTIONS, STOCHASTIC_POLICY
 
 import settings as s
@@ -22,7 +22,8 @@ def setup(self):
 
     self.MODEL_TYPE = m.QTable
     # Select model type here
-    self.model = self.MODEL_TYPE(**self.MODEL_TYPE.get_architecture())
+    architecture = self.MODEL_TYPE.get_architecture()
+    self.model = self.MODEL_TYPE(**architecture)
     '''    
     if os.path.isfile(self.PATH):
         # TODO: Disable dropout and batch norm
@@ -31,25 +32,15 @@ def setup(self):
         # TODO : should we move the model to device here?
         self.model.to(DEVICE)
     '''
+
+    self.stats = Stats(architecture["dimensions"])
+    # TODO : could load old stats, but seems unneccessary for now
+
     if os.path.isfile(self.PATH):
         self.model.table = torch.load(self.PATH)
     
     # Initialize eps
     self.eps = 0 # if not training eps should be 0
-
-    # Collecting metrics
-    self.round_reward = 0
-    self.round_score_history = []
-
-    self.round_reward_history = []
-    self.mean_round_reward_history = []
-    
-    self.event_counter = {}
-
-    # TODO : save/display immediate rewards in each step
-    self.step_reward_history = []
-
-    self.eps_history = []
 
     # For rule-based agent only
     self.bomb_history = deque([], 5)

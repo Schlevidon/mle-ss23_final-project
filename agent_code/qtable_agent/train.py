@@ -10,7 +10,6 @@ import torch
 import numpy as np
 
 import events as e
-from .helper import plot
 from .features import get_safety_feature
 from .globals import Transition, TRANSITION_HISTORY_SIZE, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS, ACTIONS_DICT
 
@@ -30,109 +29,61 @@ def setup_training(self):
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
-   
+    # Add custom events
     new_events = get_new_events(self, old_game_state, self_action, new_game_state)
     events.extend(new_events)
 
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    for event in events:
-        if event in self.event_counter:
-            self.event_counter[event] += 1
-        else:
-            self.event_counter[event] = 0
-    """
-    # Distance to coin
-    current_distance = self.MODEL_TYPE.state_to_features(new_game_state, self)[-1]
-    if self.last_distance < current_distance:
-        events.append(e.DISTANCE_MAX)
-    if self.last_distance > current_distance:
-        events.append(e.DISTANCE_MIN)
-
-    self.last_distance = current_distance
-    """
-
-    """# Reward ideal action
-    if self_action == ACTIONS[self.MODEL_TYPE.state_to_features(old_game_state, self)]:
-        events.append(e.IDEAL_ACTION)
-    """
-
-
-    # Update total reward from round
     reward = reward_from_events(self, events)
-    self.round_reward += reward
 
     # state_to_features is defined in model.py
-    self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(old_game_state, self),
+    old_state_feature = self.MODEL_TYPE.state_to_features(old_game_state, self)
+    self.transitions.append(Transition(old_state_feature,
                                         self_action, 
                                         self.MODEL_TYPE.state_to_features(new_game_state, self), 
                                         reward,
                                         new_game_state))
     
-    # Train on one random batch
-    # TODO : implement importance sampling
-    """
-    if len(self.transitions) < BATCH_SIZE:
-        sample = self.transitions
-    else:
-        sample = random.sample(self.transitions, BATCH_SIZE)
-    """
-    
+    # update stats
+    self.stats.update_step(old_game_state, self_action, new_game_state, events, reward, old_state_feature, self)
 
+    # train on the last transition
     sample = self.transitions[-1]
     self.model.train_step(self, sample)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
-    # Define new events
+    # Add custom events
     new_events = get_new_events(self, last_game_state, last_action, None)
     events.extend(new_events)
 
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
-    # Update event stats
-    for event in events:
-        if event in self.event_counter:
-            self.event_counter[event] += 1
-        else:
-            self.event_counter[event] = 0
-
-    # Update total reward from round
     reward = reward_from_events(self, events)
-    self.round_reward += reward
-
+    
     size = self.MODEL_TYPE.state_to_features(last_game_state, self).shape
-    self.transitions.append(Transition(self.MODEL_TYPE.state_to_features(last_game_state, self), 
+
+    last_game_feature = self.MODEL_TYPE.state_to_features(last_game_state, self)
+    self.transitions.append(Transition(last_game_feature, 
                                        last_action, 
                                        torch.ones(size)*float('nan'), # TODO : find a better solution (this is memory inefficient and complicated)
                                        reward,
                                        None))
+    # update stats
+    self.stats.update_end_of_round(last_game_state, last_action, events, reward, last_game_feature, self)
 
-    # TODO : Train the model for longer at the end of a round?
-    #train(self)
-
+    # train on the last transition
     sample = self.transitions[-1]
     self.model.train_step(self, sample)
-    
-    # Plot metrics
-    self.eps_history.append(self.eps)
-
-    self.round_reward_history.append(self.round_reward)
-    if len(self.round_reward_history) < AVERAGE_REWARD_WINDOW:
-        self.mean_round_reward_history.append(np.mean(self.round_reward_history)) 
-    else:
-        self.mean_round_reward_history.append(np.mean(self.round_reward_history[-AVERAGE_REWARD_WINDOW:])) 
-    
-    # Plotting the actual stats
-    plot(self.round_reward_history, self.mean_round_reward_history, self.eps_history, self.event_counter)
-
-    # Reset metrics
-    self.round_reward = 0
 
     # Store the model
     # TODO: only update if the new model is better?
     # TODO: or create multiple checkpoints?
     self.model.save()
+
+    # save the stats
+    self.stats.save()
 
     # Update EPS
     # TODO : write a scheduler?
@@ -152,6 +103,7 @@ def train(self):
         batch = list(transitions)[i:i + self.batch_size]
         train_step(self, batch)
 """
+
 def get_new_events(self, old_game_state: dict, self_action: str, new_game_state: dict = None):
     # Define new events
     # TODO : Remove for agent submission (or maybe not if train is never called)
