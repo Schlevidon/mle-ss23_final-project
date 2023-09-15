@@ -51,6 +51,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # train on the last transition
     sample = self.transitions[-1]
     self.model.train_step(self, sample)
+    self.logger.debug('_'*20)
+
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -151,8 +153,8 @@ def get_new_events(self, old_game_state: dict, self_action: str, new_game_state:
     if unsafe_actions[a_idNSAFEx] == 0:
         e.append(e.UNSAFE_ACTION)
     """
-    unsafe_actions = ACTIONS[~(get_safety_feature(pos_agent, field, explosion_map, bombs)).bool()]
-    if self_action in unsafe_actions and len(unsafe_actions) != 5:
+    safe_actions = ACTIONS[get_safety_feature(pos_agent, field, explosion_map, bombs).bool()]
+    if self_action not in safe_actions and len(safe_actions) != 0:
         events.append(e.UNSAFE_ACTION)
 
     return events

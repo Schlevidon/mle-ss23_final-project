@@ -250,7 +250,7 @@ class QTable:
 
         # Feature: Bomb safety 
         # 2^6 = 64 permutations
-        safety_feature = get_safety_feature((my_x, my_y), field, explosion_map, bombs, bomb_avail)
+        safety_feature = get_safety_feature((my_x, my_y), field, explosion_map, bombs)
 
         # Bomb attack feature
 
@@ -268,13 +268,13 @@ class QTable:
 
         # TODO : add another more sophisticated attack feature?
 
-        bomb_atack_feature = torch.tensor([agent_next_to_crate, enemy_in_blast_coords_feature])
+        bomb_attack_feature = torch.tensor([agent_next_to_crate, enemy_in_blast_coords_feature])
 
         features = torch.cat([
                               coin_or_crate_feature,
                               enemy_feature,
                               safety_feature,
-                              bomb_atack_feature
+                              bomb_attack_feature
                               ])
         return features
         

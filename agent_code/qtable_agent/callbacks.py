@@ -64,6 +64,13 @@ def act(self, game_state: dict) -> str:
     self.logger.debug(f"Safety direction: {ACTIONS[:5][state_feature[1:6].bool()]}")
     self.logger.debug(f"Agent next to crate: {bool(state_feature[6])}")"""
 
+    state_feature = self.MODEL_TYPE.state_to_features(game_state, self).flatten()
+    self.logger.debug(f"Coin or crate direction: {ACTIONS[:5][state_feature[0]]}")
+    self.logger.debug(f"Enemy direction: {ACTIONS[:5][state_feature[1]]}")
+    self.logger.debug(f"Safety direction: {ACTIONS[state_feature[2:8].bool()]}")
+    self.logger.debug(f"Agent next to crate: {bool(state_feature[8])}")
+    self.logger.debug(f"Enemy agent in blast radius: {bool(state_feature[9])}")
+
     if self.train and ALWAYS_RB:
         self.logger.debug(f"Forced to choose rule-based agent action.")
         return crb.act(self, game_state)

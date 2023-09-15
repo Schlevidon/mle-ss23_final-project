@@ -182,7 +182,7 @@ def get_blast_coords(bombs, arena):
 
         return blast_coords
 
-def get_safety_feature(pos_agent, field, explosion_map, bombs, bomb_avail=False):
+def get_safety_feature(pos_agent, field, explosion_map, bombs):
     # TODO : Explore directions in greedy order?
 
     # Update field (crates destroyed) 
@@ -198,10 +198,10 @@ def get_safety_feature(pos_agent, field, explosion_map, bombs, bomb_avail=False)
         new_pos = pos_update(pos_agent, i)
         output[i] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))
     
-    if bomb_avail:
-        new_pos = pos_agent
-        new_bombs.append((new_pos, 3))
-        output[-1] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))
+    # Bomb safety
+    new_pos = pos_agent
+    new_bombs.append((new_pos, 3))
+    output[-1] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))
 
     return output #bool[UP, RIGHT, DOWN, LEFT, WAIT, BOMB]
 
