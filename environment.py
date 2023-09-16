@@ -1,3 +1,6 @@
+import os 
+import torch
+
 import json
 import logging
 import pickle
@@ -398,6 +401,11 @@ class BombeRLeWorld(GenericWorld):
     def __init__(self, args: WorldArgs, agents):
         super().__init__(args)
 
+
+        self.PATH = "./global_model/my-model.pt"
+        if os.path.isfile(self.PATH):
+            self.global_table = torch.load(self.PATH)
+         
         self.rng = np.random.default_rng(args.seed)
         self.setup_agents(agents)
 
@@ -492,6 +500,8 @@ class BombeRLeWorld(GenericWorld):
             a.store_game_state(state)
             a.reset_game_events()
             if a.available_think_time > 0:
+                # Append global table to state
+                state["table"] = self.global_table
                 a.act(state)
 
         # Give agents time to decide

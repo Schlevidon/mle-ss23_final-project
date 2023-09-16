@@ -11,7 +11,7 @@ from collections import deque
 from . import model as m
 from . import callbacks_rb as crb
 from .helper import get_valid_actions, Stats
-from .globals import RANDOM_SEED, DEVICE, ALWAYS_RB, SAMPLE_RB, ACTIONS, STOCHASTIC_POLICY
+from .globals import RANDOM_SEED, DEVICE, ALWAYS_RB, SAMPLE_RB, ACTIONS, STOCHASTIC_POLICY, MULTIPLE_AGENTS
 
 import settings as s
 
@@ -72,6 +72,10 @@ def act(self, game_state: dict) -> str:
     self.logger.debug(f"Safety direction: {ACTIONS[state_feature[2:8].bool()]}")
     self.logger.debug(f"Agent next to crate: {bool(state_feature[8])}")
     self.logger.debug(f"Enemy agent in blast radius: {bool(state_feature[9])}")
+
+    if self.train and MULTIPLE_AGENTS:
+        self.logger.debug(f"Training with multiple agents")
+        self.model.table = game_state['table']
 
     if self.train and ALWAYS_RB:
         self.logger.debug(f"Forced to choose rule-based agent action.")
