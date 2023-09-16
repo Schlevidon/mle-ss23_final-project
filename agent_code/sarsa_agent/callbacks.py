@@ -63,6 +63,8 @@ def act(self, game_state: dict) -> str:
     self.logger.debug(f"Coin or crate direction: {ACTIONS[:5][state_feature[0]]}")
     self.logger.debug(f"Safety direction: {ACTIONS[:5][state_feature[1:6].bool()]}")
     self.logger.debug(f"Agent next to crate: {bool(state_feature[6])}")"""
+    
+    #self.model.table = torch.load(self.PATH) # for training multiple agents on the same table simultaniously
 
     state_feature = self.MODEL_TYPE.state_to_features(game_state, self).flatten()
     self.logger.debug(f"Coin or crate direction: {ACTIONS[:5][state_feature[0]]}")

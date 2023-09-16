@@ -50,41 +50,36 @@ def find_ideal_path(pos_agent, pos_coin, field=None, bombs=None, explosion_map=N
 
 
 def get_coin_feature(my_pos, other_pos, pos_targets, field):
-    coin_paths = []
-
-    # Calculate paths from out position to all targets
-    for t in pos_targets:
-        path = find_path_to_target(my_pos, t, field)
-        if len(path) > 0:
-            coin_paths.append([find_path_to_target(my_pos, t, field), t])
-    
-    # If there are no available coins return None
-    if len(coin_paths) == 0:
+    # If there are no coins
+    if len(pos_targets) == 0:
         return None
 
-    # Sort by shortest path
-    coin_paths = sorted(coin_paths, key=lambda c : len(c[0]))
-    
-    found_path = None
-    # If there are no other agents who could reach the coin first, return the first one (shortest distance)
-    if len(other_pos) == 0:
-        found_path, _ = coin_paths[0]
-    # Check if other agents can reach the coin earlier
-    else:
-        for p in coin_paths:
-            path, coin_pos = p
-            for pos in other_pos:
-                other_path = find_path_to_target(pos, coin_pos, field)
-                if len(path) <= len(other_path):
-                    found_path = path
-                    break
+    pos_targets = np.array(pos_targets)
+    coin_dists = np.squeeze(cdist([my_pos], pos_targets, metric="cityblock"))
+    idx_sort = np.argsort(coin_dists)    
 
-    
-    # We have a coin that we can reach first
-    if found_path is not None: # [(my_x, my_y), (my_x + 1, my_y), ...]
-        return get_first_step_from_path(my_pos, found_path)
-    
-    return None # No available path found
+    # Calculate paths in order of shortest manhattan distance
+    for t in pos_targets[idx_sort]:
+        if (my_pos[0] == t[0]) and (my_pos[1] == t[1]): continue # Filter out rare case where coin in placed directly on agent
+
+        path = find_path_to_target(my_pos, t, field)
+        
+        if len(path) == 0: continue # No direct path available
+
+        enemy_agent_closer = False
+        for pos in other_pos:
+            other_path = find_path_to_target(pos, t, field)
+            
+            if len(path) > len(other_path):
+                enemy_agent_closer = True
+                break
+        
+        if enemy_agent_closer: continue
+        # If there are no other agents who could reach the coin first, return
+        # [(my_x, my_y), (my_x + 1, my_y), ...]
+        return get_first_step_from_path(my_pos, path)
+        
+    return None
 
 def get_first_step_from_path(my_pos, path):
     first_step = path[1]

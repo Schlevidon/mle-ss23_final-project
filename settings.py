@@ -28,7 +28,7 @@ SCENARIOS = {
     },
     "coin-heaven2": {
         "CRATE_DENSITY": 0,
-        "COIN_COUNT": 100
+        "COIN_COUNT": 10
     },
     "coin-heaven3": {
         "CRATE_DENSITY": 0,

@@ -33,7 +33,7 @@ Transition = namedtuple('Transition',
 BATCH_SIZE = 128 # 16
 
 # epsilon for epsilon-greedy policy
-EPS_START = 0.5
+EPS_START = 0
 EPS_END = 0.001
 EPS_DECAY = 0.995
 

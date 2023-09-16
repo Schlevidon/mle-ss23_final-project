@@ -144,7 +144,7 @@ def get_new_events(self, old_game_state: dict, self_action: str, new_game_state:
 
     field = old_game_state["field"]
     
-    if enemy_in_blast_coords(my_pos, other_pos, field):
+    if self_action == "BOMB" and enemy_in_blast_coords(my_pos, other_pos, field):
         events.append(e.BOMB_NEAR_ENEMY)
 
 

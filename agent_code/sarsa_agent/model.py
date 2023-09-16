@@ -1,4 +1,5 @@
 import os
+from time import sleep
 
 import torch
 import torch.nn as nn
@@ -164,8 +165,17 @@ class SarsaTable:
                               bomb_attack_feature
                               ])
         return features
+
+#TODO:
+#Start code via jupyter notebook: --n-rounds = 1
+#for N- times
+#for each run: initialize temporary table
+#for each step: update field in temp table
+#afterwards update entries !=0 from temp table in original table
+    
         
     def train_step(self, agent, transitions):
+
         # TODO: how to send tensors to GPU if available
         transition_old, transition_new = transitions
         old_state, action, new_state, reward, new_state_dict = transition_old
