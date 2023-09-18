@@ -27,7 +27,7 @@ SCENARIOS = {
         "COIN_COUNT": 50
     },
     "coin-heaven2": {
-        "CRATE_DENSITY": 0,
+        "CRATE_DENSITY": 0.1,
         "COIN_COUNT": 10
     },
     "coin-heaven3": {
@@ -56,7 +56,7 @@ MAX_AGENTS = 4
 #MAX_AGENTS = 2 #changed
 
 # Round properties
-MAX_STEPS = 200 #400
+MAX_STEPS = 400
 
 # GUI properties
 GRID_SIZE = 30

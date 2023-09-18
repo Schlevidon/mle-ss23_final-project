@@ -6,6 +6,7 @@ import numpy as np
 import torch
 
 from typing import List
+from collections import deque
 import pickle
 from datetime import datetime
 from pathlib import Path
@@ -216,3 +217,13 @@ def get_valid_actions(game_state) -> np.array:
     #bomb = False # disable bombs for now
     #return np.array([True, True, True, True, True, True])
     return np.array([up, right, down, left, wait, bomb])
+
+def move_repeated(self, game_state, valid_actions_mask):
+    history = self.coordinate_history
+    self_pos = game_state['self'][-1]
+    if history.count(self_pos)>3:
+        selected_action = np.random.choice(ACTIONS[valid_actions_mask])
+        self.coordinate_history = deque([], 10)
+        return selected_action
+    else:
+        return None

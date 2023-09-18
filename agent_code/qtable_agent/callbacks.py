@@ -10,7 +10,7 @@ from collections import deque
 
 from . import model as m
 from . import callbacks_rb as crb
-from .helper import get_valid_actions, Stats
+from .helper import get_valid_actions, Stats, move_repeated
 from .globals import RANDOM_SEED, DEVICE, ALWAYS_RB, SAMPLE_RB, ACTIONS, STOCHASTIC_POLICY, MULTIPLE_AGENTS
 
 import settings as s
@@ -44,7 +44,7 @@ def setup(self):
 
     # For rule-based agent only
     self.bomb_history = deque([], 5)
-    self.coordinate_history = deque([], 20)
+    self.coordinate_history = deque([], 10)
     self.ignore_others_timer = 0
     self.current_round = 0
 
@@ -81,6 +81,12 @@ def act(self, game_state: dict) -> str:
 
     valid_actions_mask = get_valid_actions(game_state)
     self.logger.debug(f'Valid actions: {ACTIONS[valid_actions_mask]}')
+
+    if self.train:
+        selected_action = move_repeated(self, game_state, valid_actions_mask)
+        if selected_action is not None:
+            self.logger.debug(f"History event! Selected action: {selected_action}")
+            return selected_action
     
     if self.train and random.random() < self.eps:
         # Exploratory move
