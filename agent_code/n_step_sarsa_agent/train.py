@@ -48,9 +48,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # update stats
     self.stats.update_step(old_game_state, self_action, new_game_state, events, reward, old_state_feature, self)
 
-    # train on the last transition
-    sample = self.transitions[-1]
-    self.model.train_step(self, sample)
+    # train on the last two transition for a SARSA step
+    if old_game_state["step"] != 1:
+        sample = [self.transitions[-2], self.transitions[-1]]
+        self.model.train_step(self, sample)
     self.logger.debug('_'*20)
 
 
@@ -75,8 +76,13 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     # update stats
     self.stats.update_end_of_round(last_game_state, last_action, events, reward, last_game_feature, self)
 
-    # train on the last transition
-    sample = self.transitions[-1]
+    # train on the second to last transition
+    if last_game_state["step"] != 1:
+        sample = [self.transitions[-2], self.transitions[-1]]
+        self.model.train_step(self, sample)
+    
+    # train on the last state
+    sample = [self.transitions[-1], None]
     self.model.train_step(self, sample)
 
     # Store the model
@@ -141,7 +147,7 @@ def get_new_events(self, old_game_state: dict, self_action: str, new_game_state:
 
     field = old_game_state["field"]
     
-    if enemy_in_blast_coords(my_pos, other_pos, field) and self_action == "BOMB":
+    if self_action == "BOMB" and enemy_in_blast_coords(my_pos, other_pos, field):
         events.append(e.BOMB_NEAR_ENEMY)
 
 
