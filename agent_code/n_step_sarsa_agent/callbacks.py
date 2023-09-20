@@ -20,7 +20,7 @@ def setup(self):
     
     self.PATH = "./model/my-model.pt" #'/'.join((MODEL_FOLDER,MODEL_NAME))
 
-    self.MODEL_TYPE = m.SarsaTable
+    self.MODEL_TYPE = m.NSTEP_SARSA
     # Select model type here
     architecture = self.MODEL_TYPE.get_architecture()
     self.model = self.MODEL_TYPE(**architecture)
@@ -65,7 +65,7 @@ def act(self, game_state: dict) -> str:
     self.logger.debug(f"Agent next to crate: {bool(state_feature[6])}")"""
     
     #self.model.table = torch.load(self.PATH) # for training multiple agents on the same table simultaniously
-
+    
     state_feature = self.MODEL_TYPE.state_to_features(game_state, self).flatten()
     self.logger.debug(f"Coin or crate direction: {ACTIONS[:5][state_feature[0]]}")
     self.logger.debug(f"Enemy direction: {ACTIONS[:5][state_feature[1]]}")
@@ -84,11 +84,11 @@ def act(self, game_state: dict) -> str:
     valid_actions_mask = get_valid_actions(game_state)
     self.logger.debug(f'Valid actions: {ACTIONS[valid_actions_mask]}')
     
-    if self.train:
-        selected_action = move_repeated(self, game_state, valid_actions_mask)
-        if selected_action is not None:
-            self.logger.debug(f"History event! Selected action: {selected_action}")
-            return selected_action
+    #if self.train:
+    selected_action = move_repeated(self, game_state, valid_actions_mask)
+    if selected_action is not None:
+        self.logger.debug(f"History event! Selected action: {selected_action}")
+        return selected_action
         
     if self.train and random.random() < self.eps:
         # Exploratory move

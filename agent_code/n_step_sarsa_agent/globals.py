@@ -16,7 +16,7 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Use rule based agent?
 ALWAYS_RB = False
 SAMPLE_RB = False
-MULTIPLE_AGENTS = True
+MULTIPLE_AGENTS = False
 
 # Stochastic policy?
 STOCHASTIC_POLICY = False
@@ -32,6 +32,9 @@ Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward', 'next_state_dict'))
 
 BATCH_SIZE = 128 # 16
+
+#N-steps for N-Step-Sarsa
+NSTEPS = 5
 
 # epsilon for epsilon-greedy policy
 EPS_START = 0

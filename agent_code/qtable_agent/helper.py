@@ -223,7 +223,7 @@ def move_repeated(self, game_state, valid_actions_mask):
     self_pos = game_state['self'][-1]
     if history.count(self_pos)>3:
         selected_action = np.random.choice(ACTIONS[valid_actions_mask])
-        self.coordinate_history = deque([], 10)
+        #self.coordinate_history = deque([], 10)
         return selected_action
     else:
         return None

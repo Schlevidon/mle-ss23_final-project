@@ -11,7 +11,7 @@ import numpy as np
 
 import events as e
 from .features import get_safety_feature, enemy_in_blast_coords
-from .globals import Transition, TRANSITION_HISTORY_SIZE, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS, ACTIONS_DICT
+from .globals import Transition, TRANSITION_HISTORY_SIZE, EPS_START, EPS_DECAY, BATCH_SIZE, AVERAGE_REWARD_WINDOW, ACTIONS, ACTIONS_DICT, NSTEPS
 
 def setup_training(self):
 
@@ -48,10 +48,17 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # update stats
     self.stats.update_step(old_game_state, self_action, new_game_state, events, reward, old_state_feature, self)
 
-    # train on the last two transition for a SARSA step
+    # train on the last NSTEPS transition for a SARSA step
+    if old_game_state['step'] >=NSTEPS:
+        sample = []
+        for i in np.arange(1, NSTEPS+1, 1)[::-1]:
+            sample.append(self.transitions[-i])
+        self.model.train_step(self, sample)
+    '''
     if old_game_state["step"] != 1:
         sample = [self.transitions[-2], self.transitions[-1]]
         self.model.train_step(self, sample)
+     '''
     self.logger.debug('_'*20)
 
 
@@ -70,20 +77,28 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     last_game_feature = self.MODEL_TYPE.state_to_features(last_game_state, self)
     self.transitions.append(Transition(last_game_feature, 
                                        last_action, 
-                                       torch.ones(size)*float('nan'), # TODO : find a better solution (this is memory inefficient and complicated)
+                                       torch.ones(size) *float('nan'), # TODO : find a better solution (this is memory inefficient and complicated)
                                        reward,
                                        None))
     # update stats
     self.stats.update_end_of_round(last_game_state, last_action, events, reward, last_game_feature, self)
 
-    # train on the second to last transition
-    if last_game_state["step"] != 1:
-        sample = [self.transitions[-2], self.transitions[-1]]
-        self.model.train_step(self, sample)
-    
-    # train on the last state
-    sample = [self.transitions[-1], None]
-    self.model.train_step(self, sample)
+
+    # train on the last NSTEPS transition for a SARSA step
+    # like in game_event_occured
+    if last_game_state['step']  < NSTEPS:
+        NSTEPS_temp = last_game_state['step']
+        sample = []
+        for i in np.arange(1, NSTEPS_temp+1, 1)[::-1]:
+            sample.append(self.transitions[-i])
+            #sample = [state[-5], state[-4], state[-3], state[-2], state[-1], None]
+    else:
+        sample = []
+        for i in np.arange(1, NSTEPS+1, 1)[::-1]:
+            sample.append(self.transitions[-i])
+    sample.append(None)
+    self.model.train_step(self, sample)    
+
 
     # Store the model
     # TODO: only update if the new model is better?
@@ -91,7 +106,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.model.save()
 
     # Store global model
-    self.model.save(folder_path='../../global_model')
+    #self.model.save(folder_path='../../global_model') # to prevent from overwriting the qtable
 
     # save the stats
     self.stats.save()
@@ -100,6 +115,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     # TODO : write a scheduler?
     self.eps *= EPS_DECAY
     self.logger.debug(f'EPS_value: {self.eps}')
+
+
     
 """
 def train(self):

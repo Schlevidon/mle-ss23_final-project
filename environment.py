@@ -503,6 +503,8 @@ class BombeRLeWorld(GenericWorld):
                 # Append global table to state
                 state["table"] = self.global_table
                 a.act(state)
+            else:
+                print(f"Agent {state['self'][0]} timed out")
 
         # Give agents time to decide
         perm = self.rng.permutation(len(self.active_agents))

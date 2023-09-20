@@ -82,11 +82,11 @@ def act(self, game_state: dict) -> str:
     valid_actions_mask = get_valid_actions(game_state)
     self.logger.debug(f'Valid actions: {ACTIONS[valid_actions_mask]}')
 
-    if self.train:
-        selected_action = move_repeated(self, game_state, valid_actions_mask)
-        if selected_action is not None:
-            self.logger.debug(f"History event! Selected action: {selected_action}")
-            return selected_action
+    #if self.train:
+    selected_action = move_repeated(self, game_state, valid_actions_mask)
+    if selected_action is not None:
+        self.logger.debug(f"History event! Selected action: {selected_action}")
+        return selected_action
     
     if self.train and random.random() < self.eps:
         # Exploratory move
