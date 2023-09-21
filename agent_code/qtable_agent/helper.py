@@ -221,9 +221,32 @@ def get_valid_actions(game_state) -> np.array:
 def move_repeated(self, game_state, valid_actions_mask):
     history = self.coordinate_history
     self_pos = game_state['self'][-1]
-    if history.count(self_pos)>3:
-        selected_action = np.random.choice(ACTIONS[valid_actions_mask])
+    
+    if history.count(self_pos)>2:
+
+        last_pos = history[-1]
+        action_to_last_pos = get_last_step(self_pos, last_pos)
+
+        valid_action = [action for action in ACTIONS[valid_actions_mask] if action!='BOMB'and action!=action_to_last_pos]
+        self.coordinate_history.append(self_pos)
+        if len(valid_action)==0:
+            return None
+        selected_action = np.random.choice(valid_action)
         #self.coordinate_history = deque([], 10)
         return selected_action
     else:
+        self.coordinate_history.append(self_pos)
         return None
+    
+def get_last_step(my_pos, last_pos):
+    my_x_old, my_y_old = last_pos
+    my_x, my_y = my_pos
+    if my_y_old < my_y:
+        return "UP"
+    if my_y_old > my_y:
+        return "DOWN"
+    if my_x_old < my_x:
+        return "LEFT"
+    if my_x_old > my_x:
+        return "RIGHT"
+    return 'WAIT'

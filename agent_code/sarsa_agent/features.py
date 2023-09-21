@@ -197,7 +197,9 @@ def get_safety_feature(pos_agent, field, explosion_map, bombs):
     # Bomb safety
     new_pos = pos_agent
     new_bombs.append((new_pos, 3))
-    output[-1] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))
+    # If we can't wait we also can't place bombs
+    if output[-2]!=0:
+        output[-1] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))
 
     return output #bool[UP, RIGHT, DOWN, LEFT, WAIT, BOMB]
 

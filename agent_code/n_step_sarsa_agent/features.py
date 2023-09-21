@@ -6,7 +6,8 @@ from scipy.spatial.distance import cdist
 from pathfinding.core.grid import Grid
 from pathfinding.finder.a_star import AStarFinder
 
-from settings import BOMB_POWER
+#from settings import BOMB_POWER
+BOMB_POWER = 3
 
 def find_ideal_path(pos_agent, pos_coin, field=None, bombs=None, explosion_map=None):
     field[field==1] = 2
@@ -66,15 +67,18 @@ def get_coin_feature(my_pos, other_pos, pos_targets, field):
         
         if len(path) == 0: continue # No direct path available
 
-        enemy_agent_closer = False
+        
+        '''  
+        enemy_agent_closer = False     
         for pos in other_pos:
             other_path = find_path_to_target(pos, t, field)
             
             if len(path) > len(other_path):
                 enemy_agent_closer = True
                 break
-        
         if enemy_agent_closer: continue
+        '''
+        
         # If there are no other agents who could reach the coin first, return
         # [(my_x, my_y), (my_x + 1, my_y), ...]
         return get_first_step_from_path(my_pos, path)
@@ -197,7 +201,10 @@ def get_safety_feature(pos_agent, field, explosion_map, bombs):
     # Bomb safety
     new_pos = pos_agent
     new_bombs.append((new_pos, 3))
-    output[-1] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))
+
+    # If we can't wait we also can't place bombs
+    if output[-2]!=0:
+        output[-1] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))
 
     return output #bool[UP, RIGHT, DOWN, LEFT, WAIT, BOMB]
 

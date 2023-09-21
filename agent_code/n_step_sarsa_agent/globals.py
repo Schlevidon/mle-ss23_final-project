@@ -16,7 +16,7 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Use rule based agent?
 ALWAYS_RB = False
 SAMPLE_RB = False
-MULTIPLE_AGENTS = False
+MULTIPLE_AGENTS = True
 
 # Stochastic policy?
 STOCHASTIC_POLICY = False

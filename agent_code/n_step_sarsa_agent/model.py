@@ -10,7 +10,9 @@ from scipy.spatial.distance import cdist
 import settings as s
 from .globals import GAMMA, ACTIONS_DICT, LR
 from .helper import get_valid_actions
-from .features import find_ideal_path, get_blast_coords, get_safety_feature, get_coin_feature, get_enemy_agent_feature, enemy_in_blast_coords
+from .features import find_ideal_path, get_blast_coords,\
+                    get_safety_feature, get_coin_feature, get_enemy_agent_feature,\
+                    enemy_in_blast_coords, find_path_to_target, get_first_step_from_path
 from . import callbacks_rb as crb
 
 # dummy state to determine feature dimension
@@ -275,6 +277,7 @@ class NSTEP_SARSA:
                 
                 # TODO : if the crate is diagonal which direction should be chosen?
                 # For now the x coordinate is preferred
+                '''
                 if selected_crate[1] < my_y:
                     crate_direction = "UP"
                 if selected_crate[1] > my_y:
@@ -283,15 +286,17 @@ class NSTEP_SARSA:
                     crate_direction = "LEFT"
                 if selected_crate[0] > my_x:
                     crate_direction = "RIGHT"
+                '''
+                # Remove target crate from field so pathfinding works
+                field_temp = field.copy()
+                field_temp[selected_crate] = 0
 
-                coin_or_crate_feature = ACTIONS_DICT[crate_direction]
+                path = find_path_to_target(my_pos, selected_crate, field_temp)
+                if len(path)>1:
+                    crate_direction = get_first_step_from_path(my_pos, path)
+
+                    coin_or_crate_feature = ACTIONS_DICT[crate_direction]
                 
-                """crate_feature = torch.tensor([int(np.any(crate_targets[:, 1] < my_y)), # UP
-                                        int(np.any(my_x < crate_targets[:, 0])), # RIGHT
-                                        int(np.any(my_y < crate_targets[:, 1])), # DOWN
-                                        int(np.any(crate_targets[:, 0] < my_x)), # LEFT
-                                        #int(min_dist == 1), # is the agent next to the crate?
-                                        ])"""
         # Reshape scalar to match other feature
         coin_or_crate_feature = torch.tensor(coin_or_crate_feature).view(1)
         

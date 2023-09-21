@@ -116,6 +116,7 @@ def get_new_events(self, old_game_state: dict, self_action: str, new_game_state:
     events.append(e.ANY_ACTION)
 
     # If agent has been in the same location two times recently, it's a loop
+    '''    
     try:
         agent_pos = new_game_state['self'][-1]
         if self.coordinate_history.count(agent_pos) > 2:
@@ -123,7 +124,7 @@ def get_new_events(self, old_game_state: dict, self_action: str, new_game_state:
         self.coordinate_history.append(agent_pos)
     except:
         self.logger.debug(f'Position of agent not found: no new_game_state')
-
+    '''
     # TODO : think of a smarte way to do this
     # Agent placed a bomb next to a crate
     if self_action == "BOMB":
