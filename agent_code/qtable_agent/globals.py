@@ -14,9 +14,12 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # TODO: Add a way to load the selected scenario to determine the number of available coins
 
 # Use rule based agent?
-ALWAYS_RB = False
-SAMPLE_RB = True
+ALWAYS_RB = True
+SAMPLE_RB = False
 MULTIPLE_AGENTS = False
+
+# Use History to escape loops
+HISTORY_FLAG = False
 
 # Stochastic policy?
 STOCHASTIC_POLICY = False
@@ -36,7 +39,7 @@ BATCH_SIZE = 128 # 16
 # epsilon for epsilon-greedy policy
 EPS_START = 0.3
 EPS_END = 0.001
-EPS_DECAY = 0.9999
+EPS_DECAY = 0.99
 
 # Reward discount factor
 GAMMA = 0.99

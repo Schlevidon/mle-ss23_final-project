@@ -1,6 +1,6 @@
 import matplotlib
 import matplotlib.pyplot as plt
-from IPython import display
+#from IPython import display
 
 import numpy as np
 import torch
@@ -233,7 +233,7 @@ def move_repeated(self, game_state, valid_actions_mask):
         if len(valid_action)==0:
             return None
         selected_action = np.random.choice(valid_action)
-        #self.coordinate_history = deque([], 10)
+        self.coordinate_history = deque([], 10)
         return selected_action
     else:
         self.coordinate_history.append(self_pos)

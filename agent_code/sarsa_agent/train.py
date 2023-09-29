@@ -91,7 +91,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.model.save()
 
     # Store global model
-    self.model.save(folder_path='../../global_model')
+    #self.model.save(folder_path='../../global_model')
 
     # save the stats
     self.stats.save()

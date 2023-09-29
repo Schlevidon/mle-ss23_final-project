@@ -67,24 +67,20 @@ def get_coin_feature(my_pos, other_pos, pos_targets, field):
         
         if len(path) == 0: continue # No direct path available
 
-        
-        '''  
-        enemy_agent_closer = False     
+        enemy_agent_closer = False
         for pos in other_pos:
             other_path = find_path_to_target(pos, t, field)
             
             if len(path) > len(other_path):
                 enemy_agent_closer = True
                 break
-        if enemy_agent_closer: continue
-        '''
         
+        if enemy_agent_closer: continue
         # If there are no other agents who could reach the coin first, return
         # [(my_x, my_y), (my_x + 1, my_y), ...]
         return get_first_step_from_path(my_pos, path)
         
     return None
-
 
 def get_first_step_from_path(my_pos, path):
     first_step = path[1]
@@ -116,11 +112,10 @@ def find_path_to_target(my_pos, pos_target, field):
     path, runs = finder.find_path(start, end, grid)
     grid.cleanup()
 
-    return path # len(path) = 0 if no path can be found
+    return path # len(path) = 0 iff no path can be found
 
 def get_enemy_agent_feature(my_pos, pos_targets, field):
     # If there are no enemies return None
-    #return None # remove for normal feature
     if len(pos_targets) == 0:
         return None
 
@@ -202,7 +197,7 @@ def get_safety_feature(pos_agent, field, explosion_map, bombs):
     # Bomb safety
     new_pos = pos_agent
     new_bombs.append((new_pos, 3))
-
+    
     # If we can't wait we also can't place bombs
     if output[-2]!=0:
         output[-1] = int(find_safe_tile(new_pos, new_field, new_explosion_map, new_bombs, 1))

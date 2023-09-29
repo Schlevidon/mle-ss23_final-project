@@ -1,6 +1,6 @@
 import matplotlib
 import matplotlib.pyplot as plt
-from IPython import display
+#from IPython import display
 
 import numpy as np
 import torch

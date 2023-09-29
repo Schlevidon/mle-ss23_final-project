@@ -11,7 +11,7 @@ from collections import deque
 from . import model as m
 from . import callbacks_rb as crb
 from .helper import get_valid_actions, Stats, move_repeated
-from .globals import RANDOM_SEED, DEVICE, ALWAYS_RB, SAMPLE_RB, ACTIONS, STOCHASTIC_POLICY, MULTIPLE_AGENTS
+from .globals import RANDOM_SEED, DEVICE, ALWAYS_RB, SAMPLE_RB, ACTIONS, STOCHASTIC_POLICY, MULTIPLE_AGENTS, HISTORY_FLAG
 
 import settings as s
 
@@ -85,10 +85,11 @@ def act(self, game_state: dict) -> str:
     self.logger.debug(f'Valid actions: {ACTIONS[valid_actions_mask]}')
     
     #if self.train:
-    selected_action = move_repeated(self, game_state, valid_actions_mask)
-    if selected_action is not None:
-        self.logger.debug(f"History event! Selected action: {selected_action}")
-        return selected_action
+    if HISTORY_FLAG:
+        selected_action = move_repeated(self, game_state, valid_actions_mask)
+        if selected_action is not None:
+            self.logger.debug(f"History event! Selected action: {selected_action}")
+            return selected_action
         
     if self.train and random.random() < self.eps:
         # Exploratory move

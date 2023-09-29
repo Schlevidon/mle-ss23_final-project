@@ -36,16 +36,13 @@ Transition = namedtuple('Transition',
 
 BATCH_SIZE = 128 # 16
 
-#N-steps for N-Step-Sarsa
-NSTEPS = 5
-
 # epsilon for epsilon-greedy policy
 EPS_START = 0.3
 EPS_END = 0.001
 EPS_DECAY = 0.99
 
 # Reward discount factor
-GAMMA = 0.5 #0.99
+GAMMA = 0.99
 
 AVERAGE_REWARD_WINDOW = 50
 

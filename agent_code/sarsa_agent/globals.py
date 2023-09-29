@@ -16,7 +16,7 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Use rule based agent?
 ALWAYS_RB = False
 SAMPLE_RB = False
-MULTIPLE_AGENTS = True
+MULTIPLE_AGENTS = False
 
 # Stochastic policy?
 STOCHASTIC_POLICY = False
@@ -34,7 +34,7 @@ Transition = namedtuple('Transition',
 BATCH_SIZE = 128 # 16
 
 # epsilon for epsilon-greedy policy
-EPS_START = 0
+EPS_START = 0.3
 EPS_END = 0.001
 EPS_DECAY = 0.995
 
