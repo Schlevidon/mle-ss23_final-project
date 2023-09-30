@@ -15,7 +15,7 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Use rule based agent?
 ALWAYS_RB = False
-SAMPLE_RB = True
+SAMPLE_RB = False
 MULTIPLE_AGENTS = False
 
 # Use History to escape loops
@@ -37,9 +37,9 @@ Transition = namedtuple('Transition',
 BATCH_SIZE = 128 # 16
 
 # epsilon for epsilon-greedy policy
-EPS_START = 0.09378577240057318
+EPS_START = 0.3
 EPS_END = 0.001
-EPS_DECAY = 0.99
+EPS_DECAY = 0.995
 
 # Reward discount factor
 GAMMA = 0.99

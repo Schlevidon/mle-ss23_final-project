@@ -6,6 +6,9 @@ import torch
 from . import model as m
 
 ACTIONS = np.array(['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB'])
+
+
+
 ACTIONS_DICT = {action : idx for idx, action in enumerate(ACTIONS)}
 
 # Set pytorch device
@@ -37,15 +40,15 @@ Transition = namedtuple('Transition',
 BATCH_SIZE = 128 # 16
 
 #N-steps for N-Step-Sarsa
-NSTEPS = 5
+NSTEPS = 2
 
 # epsilon for epsilon-greedy policy
 EPS_START = 0.3
 EPS_END = 0.001
-EPS_DECAY = 0.99
+EPS_DECAY = 0.995
 
 # Reward discount factor
-GAMMA = 0.5 #0.99
+GAMMA = 0.5
 
 AVERAGE_REWARD_WINDOW = 50
 
