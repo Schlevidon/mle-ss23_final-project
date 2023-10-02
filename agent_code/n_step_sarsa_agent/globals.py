@@ -43,7 +43,7 @@ BATCH_SIZE = 128 # 16
 NSTEPS = 2
 
 # epsilon for epsilon-greedy policy
-EPS_START = 0.3
+EPS_START = 0.024471558432083512
 EPS_END = 0.001
 EPS_DECAY = 0.995
 

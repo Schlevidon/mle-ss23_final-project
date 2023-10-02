@@ -14,12 +14,12 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # TODO: Add a way to load the selected scenario to determine the number of available coins
 
 # Use rule based agent?
-ALWAYS_RB = False
+ALWAYS_RB = True
 SAMPLE_RB = False
 MULTIPLE_AGENTS = False
 
-# Use History to escape loops
-HISTORY_FLAG = False
+# Use coin learning agent
+COIN_LEADING = False
 
 # Stochastic policy?
 STOCHASTIC_POLICY = False
@@ -34,10 +34,17 @@ TRANSITION_HISTORY_SIZE = 100_000
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward', 'next_state_dict'))
 
-BATCH_SIZE = 128 # 16
+OPTIMIZER_PARAMS = {
+    "lr" : 1e-3,
+    "eps" : 1e-9,
+    "betas" : [0.9, 0.98]
+}
+CRITERION = torch.nn.MSELoss()
+
+BATCH_SIZE = 256 # 16
 
 # epsilon for epsilon-greedy policy
-EPS_START = 0.05131550833072173
+EPS_START = 0.3
 EPS_END = 0.001
 EPS_DECAY = 0.995
 
